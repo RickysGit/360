@@ -440,11 +440,14 @@ function initGL(){
   resize();
   window.addEventListener('resize', resize);
 
-  viewer.addEventListener('pointerdown', onDown, {passive:false});
-  viewer.addEventListener('pointermove', onMove, {passive:false});
-  viewer.addEventListener('pointerup', onUp, {passive:false});
-  viewer.addEventListener('pointercancel', onUp, {passive:false});
-  viewer.addEventListener('wheel', onWheel, {passive:false});
+  canvas.style.touchAction = 'none'; // ✅ 確保手勢由你接管
+
+canvas.addEventListener('pointerdown', onDown, {passive:false});
+canvas.addEventListener('pointermove', onMove, {passive:false});
+canvas.addEventListener('pointerup', onUp, {passive:false});
+canvas.addEventListener('pointercancel', onUp, {passive:false});
+canvas.addEventListener('wheel', onWheel, {passive:false});
+
 
   return true;
 }
@@ -656,4 +659,5 @@ renderLibrary();
 </script>
 </body>
 </html>
+
 
