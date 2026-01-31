@@ -30,13 +30,15 @@
       user-select:none;
       white-space:nowrap;
     }
+
+    /* ✅ 不用 display:none，避免某些手機不給開檔案挑選器 */
     input[type=file]{
-  position: fixed;
-  left: -9999px;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
+      position: fixed;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
 
     main{ padding:12px; }
     .info{
@@ -59,7 +61,7 @@
     .name{ font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .time{ font-size:11px; color:var(--muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-    .viewer{ position:fixed; inset:0; background:#000; z-index:999; display:none; touch-action:none; }
+    .viewer{ position:fixed; inset:0; background:#000; z-index:999; display:none; }
     .viewer.show{ display:block; }
     #glcanvas{ width:100%; height:100%; display:block; }
     .v-ui{ position:absolute; inset:0; pointer-events:none; }
@@ -93,12 +95,12 @@
 <header>
   <div class="left">
     <div class="title">360 圖片手機圖庫</div>
-    <div class="sub" id="subline">拖曳環視｜捏合縮放｜縮到遠會變小星球｜點一下隱藏 UI</div>
+    <div class="sub" id="subline">拖曳環視｜捏合縮放（張開＝放大）｜縮很遠會變 Tiny Planet｜點一下畫面隱藏 UI</div>
   </div>
   <div style="display:flex; gap:8px; align-items:center;">
-    <label class="btn" for="fileInput">新增圖片</label>
+    <button class="btn" id="addBtn" type="button">新增圖片</button>
     <button class="btn" id="importFolderBtn" style="display:none;">匯入資料夾</button>
-    <button class="btn" id="clearBtn">清空</button>
+    <button class="btn" id="clearBtn" type="button">清空</button>
   </div>
 </header>
 
@@ -114,17 +116,17 @@
   <div class="v-ui">
     <div class="v-top">
       <div class="row">
-        <button class="btn" id="backBtn">返回</button>
+        <button class="btn" id="backBtn" type="button">返回</button>
       </div>
       <div class="row">
-        <button class="btn" id="shotBtn">截圖</button>
+        <button class="btn" id="shotBtn" type="button">截圖</button>
       </div>
     </div>
     <div class="v-bottom">
       <div class="nav">
-        <button class="btn" id="prevBtn">◀</button>
+        <button class="btn" id="prevBtn" type="button">◀</button>
         <div class="label" id="vLabel">—</div>
-        <button class="btn" id="nextBtn">▶</button>
+        <button class="btn" id="nextBtn" type="button">▶</button>
       </div>
     </div>
     <div class="badge" id="vBadge">—</div>
@@ -134,6 +136,35 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* ==========================
+   設定（你若要微調只改這裡）
+========================== */
+const SETTINGS = {
+  // 若仍上下顛倒：改成 1
+  FLIP_V: 0,
+
+  // 拖曳旋轉速度（越大越快）
+  DRAG_SENS: 0.0045,
+
+  // 兩指縮放速度（越大越敏感）
+  PINCH_SENS: 0.015,
+
+  // 滾輪縮放速度
+  WHEEL_SENS: 0.0035,
+
+  // FOV 範圍：越大越容易進 Tiny Planet
+  FOV_MIN: 25,
+  FOV_MAX: 155,
+
+  // 進入 Tiny Planet 的門檻（FOV 超過此值開始混合 stereographic）
+  PLANET_FOV_START: 125,
+  PLANET_FOV_FULL: 150, // 到這裡基本全 Tiny Planet
+
+  // Tiny Planet 的「星球大小」參數：越小星球越小
+  PLANET_R_MAX: 1.25,
+  PLANET_R_MIN: 0.25,
+};
+
 /* ===== toast ===== */
 const toastEl = document.getElementById('toast');
 let toastTimer = 0;
@@ -173,7 +204,6 @@ function updateInfo(){
 async function makeThumb(file){
   const maxSide = 420;
 
-  // try createImageBitmap first
   if('createImageBitmap' in window){
     try{
       const bmp = await createImageBitmap(file);
@@ -192,7 +222,6 @@ async function makeThumb(file){
     }catch(_){}
   }
 
-  // fallback: <img> decode
   const url = URL.createObjectURL(file);
   const img = await new Promise((resolve,reject)=>{
     const im=new Image();
@@ -289,39 +318,39 @@ async function addFiles(fileList){
 
 /* ===== optional: import folder (Chromium + HTTPS) ===== */
 const importFolderBtn = document.getElementById('importFolderBtn');
-function isSecureContextOk(){
-  return window.isSecureContext === true; // HTTPS / localhost usually
-}
 async function importFromFolder(){
   if(!('showDirectoryPicker' in window)){
     toast('此瀏覽器不支援匯入資料夾');
     return;
   }
-  if(!isSecureContextOk()){
+  if(!window.isSecureContext){
     toast('匯入資料夾需要 HTTPS（安全環境）');
     return;
   }
   try{
     const dir = await window.showDirectoryPicker();
-    let count = 0;
-
-    // 只掃第一層（你要遞迴我也能加）
-    for await (const [name, handle] of dir.entries()){
+    let picked = [];
+    for await (const [, handle] of dir.entries()){
       if(handle.kind !== 'file') continue;
       const file = await handle.getFile();
-      if(file.type && file.type.startsWith('image/')){
-        await addFiles([file]);
-        count++;
-      }
+      if(file.type && file.type.startsWith('image/')) picked.push(file);
     }
-    toast(`資料夾匯入完成：${count} 張`, 1800);
+    if(picked.length){
+      await addFiles(picked);
+      toast(`資料夾匯入完成：${picked.length} 張`, 1800);
+    }
   }catch(err){
-    // user cancel or permission issue
     console.warn(err);
   }
 }
 
-/* ===== Viewer (WebGL 360 + 小星球) ===== */
+/* ==========================
+   Viewer（WebGL：一般 360 + Tiny Planet）
+   - 一般 360：透視投影 -> 全景(equirect)取樣
+   - Tiny Planet：inverse stereographic 立體投影（不是把相機拉到球外）
+   - 縮放：張開＝放大(zoom in, FOV↓)；捏合＝縮小(zoom out, FOV↑)
+   - 旋轉：水平＝yaw繞Y；垂直＝pitch繞X（Unity-like：Y up, Z forward）
+========================== */
 const viewer = document.getElementById('viewer');
 const canvas = document.getElementById('glcanvas');
 const backBtn = document.getElementById('backBtn');
@@ -332,11 +361,32 @@ const vLabel  = document.getElementById('vLabel');
 const vBadge  = document.getElementById('vBadge');
 
 let gl=null, prog=null, tex=null, loc={}, raf=0;
-let yaw=0, pitch=0, fovDeg=80, camDist=0, aspect=1;
+let yaw=0, pitch=0, fovDeg=80, aspect=1;
+let planetBlend=0, planetR=SETTINGS.PLANET_R_MAX;
 const pointers = new Map();
 let tapCandidate=null, uiHidden=false;
 
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+
+function setBadge(s){ vBadge.textContent = s; }
+function setLabel(s){ vLabel.textContent = s; }
+function toggleUI(force){
+  uiHidden = (typeof force==='boolean') ? force : !uiHidden;
+  viewer.classList.toggle('hidden-ui', uiHidden);
+}
+
+function updatePlanetParams(){
+  // FOV 超過門檻才逐步切入 Tiny Planet
+  const start = SETTINGS.PLANET_FOV_START;
+  const full  = SETTINGS.PLANET_FOV_FULL;
+  planetBlend = clamp((fovDeg - start) / Math.max(1e-6, (full - start)), 0, 1);
+  // FOV 越大 → 星球越小（R 越小）
+  planetR = lerp(SETTINGS.PLANET_R_MAX, SETTINGS.PLANET_R_MIN, planetBlend);
+
+  const mode = (planetBlend > 0.01) ? 'Tiny Planet' : '360';
+  setBadge(`模式：${mode}｜FOV：${Math.round(fovDeg)}°｜planet=${planetBlend.toFixed(2)}｜R=${planetR.toFixed(2)}`);
+}
 
 function initGL(){
   gl = canvas.getContext('webgl', { antialias:true, preserveDrawingBuffer:true });
@@ -347,38 +397,75 @@ function initGL(){
     varying vec2 vUv;
     void main(){ vUv = aPos*0.5+0.5; gl_Position = vec4(aPos,0.0,1.0); }
   `;
+
   const fsSrc = `
-    precision highp float;
-    varying vec2 vUv;
-    uniform sampler2D uTex;
-    uniform float uAspect, uFov, uYaw, uPitch, uCamDist;
-    vec3 rotY(vec3 v,float a){ float c=cos(a),s=sin(a); return vec3(c*v.x+s*v.z, v.y, -s*v.x+c*v.z); }
-    vec3 rotX(vec3 v,float a){ float c=cos(a),s=sin(a); return vec3(v.x, c*v.y-s*v.z, s*v.y+c*v.z); }
-    void main(){
-      vec2 p = vUv*2.0-1.0; p.x *= uAspect;
-      float tanHalf = tan(uFov*0.5);
-      vec3 rd = normalize(vec3(p.x*tanHalf, -p.y*tanHalf, -1.0));
-      rd = rotY(rd,uYaw); rd = rotX(rd,uPitch);
-      vec3 ro = vec3(0.0,0.0,uCamDist);
+precision highp float;
+varying vec2 vUv;
 
-      float b = dot(ro,rd);
-      float c = dot(ro,ro) - 1.0;
-      float h = b*b - c;
-      if(h < 0.0){ gl_FragColor = vec4(0,0,0,1); return; }
-      float t = -b - sqrt(h);
-      if(t < 0.0) t = -b + sqrt(h);
-      if(t < 0.0){ gl_FragColor = vec4(0,0,0,1); return; }
+uniform sampler2D uTex;
+uniform float uAspect, uFov, uYaw, uPitch;
+uniform float uPlanet;    // 0..1
+uniform float uPlanetR;   // 越小星球越小
+uniform float uFlipV;     // 0/1
 
-      vec3 hit = normalize(ro + rd*t);
-      float theta = atan(hit.z, hit.x);
-      float phi = asin(clamp(hit.y, -1.0, 1.0));
-      float u = 0.5 + theta / (2.0*3.141592653589793);
-      u = fract(u); // 重要：自己做水平循環（避免 NPOT + REPEAT 問題）
-      float v = 0.5 + phi / 3.141592653589793;
+const float PI = 3.141592653589793;
 
-      vec3 col = texture2D(uTex, vec2(u,v)).rgb;
-      gl_FragColor = vec4(col,1.0);
-    }
+vec3 rotY(vec3 v, float a){
+  float c = cos(a), s = sin(a);
+  return vec3(c*v.x + s*v.z, v.y, -s*v.x + c*v.z);
+}
+vec3 rotX(vec3 v, float a){
+  float c = cos(a), s = sin(a);
+  return vec3(v.x, c*v.y - s*v.z, s*v.y + c*v.z);
+}
+
+vec2 panoUV(vec3 dir){
+  dir = normalize(dir);
+
+  // Unity-like：+Z forward，經度用 atan(x,z)
+  float lon = atan(dir.x, dir.z);
+  float lat = asin(clamp(dir.y, -1.0, 1.0));
+
+  float u = 0.5 + lon / (2.0 * PI);
+  u = fract(u);
+
+  // v=0 在最上方（北極）
+  float v = 0.5 - lat / PI;
+  if(uFlipV > 0.5) v = 1.0 - v;
+
+  return vec2(u, v);
+}
+
+void main(){
+  vec2 p = vUv * 2.0 - 1.0;
+  p.x *= uAspect;
+
+  // ===== 一般 360：透視 -> 方向 -> equirect =====
+  float tanHalf = tan(uFov * 0.5);
+  vec3 dirN = normalize(vec3(p.x * tanHalf, -p.y * tanHalf, 1.0)); // +Z forward
+  dirN = rotY(dirN, uYaw);
+  dirN = rotX(dirN, uPitch);
+  vec2 uvN = panoUV(dirN);
+
+  // ===== Tiny Planet：inverse stereographic（中心對準 nadir/腳下）=====
+  // stereographic inverse：lat = -PI/2 + 2*atan(r/(2*R))
+  float r = length(p);
+  float a = atan(p.y, p.x);
+
+  float latP = -PI/2.0 + 2.0 * atan( r / (2.0 * max(0.0001, uPlanetR)) );
+  float lonP = a;
+
+  vec3 dirP = vec3(cos(latP) * sin(lonP), sin(latP), cos(latP) * cos(lonP));
+  dirP = rotY(dirP, uYaw);
+  dirP = rotX(dirP, uPitch);
+  vec2 uvP = panoUV(dirP);
+
+  float t = clamp(uPlanet, 0.0, 1.0);
+  vec2 uv = mix(uvN, uvP, t);
+
+  vec3 col = texture2D(uTex, uv).rgb;
+  gl_FragColor = vec4(col, 1.0);
+}
   `;
 
   function compile(type, src){
@@ -419,19 +506,22 @@ function initGL(){
   gl.enableVertexAttribArray(aPos);
   gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
-  loc.uTex = gl.getUniformLocation(prog, 'uTex');
-  loc.uAspect = gl.getUniformLocation(prog, 'uAspect');
-  loc.uFov = gl.getUniformLocation(prog, 'uFov');
-  loc.uYaw = gl.getUniformLocation(prog, 'uYaw');
-  loc.uPitch = gl.getUniformLocation(prog, 'uPitch');
-  loc.uCamDist = gl.getUniformLocation(prog, 'uCamDist');
+  loc.uTex     = gl.getUniformLocation(prog, 'uTex');
+  loc.uAspect  = gl.getUniformLocation(prog, 'uAspect');
+  loc.uFov     = gl.getUniformLocation(prog, 'uFov');
+  loc.uYaw     = gl.getUniformLocation(prog, 'uYaw');
+  loc.uPitch   = gl.getUniformLocation(prog, 'uPitch');
+  loc.uPlanet  = gl.getUniformLocation(prog, 'uPlanet');
+  loc.uPlanetR = gl.getUniformLocation(prog, 'uPlanetR');
+  loc.uFlipV   = gl.getUniformLocation(prog, 'uFlipV');
 
   tex = gl.createTexture();
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  // 重要：行動裝置大量照片是 NPOT，不能用 REPEAT；用 CLAMP + fract(u)
+
+  // 行動裝置大量照片是 NPOT；用 CLAMP（u 用 fract 自己做循環）
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
@@ -440,14 +530,19 @@ function initGL(){
   resize();
   window.addEventListener('resize', resize);
 
-  canvas.style.touchAction = 'none'; // ✅ 確保手勢由你接管
+  // ✅ 手勢只綁 canvas：按鈕不會被當成 tap
+  canvas.style.touchAction = 'none';
+  canvas.addEventListener('pointerdown', onDown, {passive:false});
+  canvas.addEventListener('pointermove', onMove, {passive:false});
+  canvas.addEventListener('pointerup', onUp, {passive:false});
+  canvas.addEventListener('pointercancel', onUp, {passive:false});
+  canvas.addEventListener('wheel', onWheel, {passive:false});
 
-canvas.addEventListener('pointerdown', onDown, {passive:false});
-canvas.addEventListener('pointermove', onMove, {passive:false});
-canvas.addEventListener('pointerup', onUp, {passive:false});
-canvas.addEventListener('pointercancel', onUp, {passive:false});
-canvas.addEventListener('wheel', onWheel, {passive:false});
-
+  // 保險：按鈕按下不影響 tapCandidate
+  [backBtn, prevBtn, nextBtn, shotBtn].forEach(btn=>{
+    btn.addEventListener('pointerdown', (e)=> e.stopPropagation());
+    btn.addEventListener('click', (e)=> e.stopPropagation());
+  });
 
   return true;
 }
@@ -460,55 +555,43 @@ function resize(){
   if(gl){ gl.viewport(0,0,w,h); aspect = w/h; }
 }
 
-function setBadge(s){ vBadge.textContent = s; }
-function setLabel(s){ vLabel.textContent = s; }
-function toggleUI(force){
-  uiHidden = (typeof force==='boolean') ? force : !uiHidden;
-  viewer.classList.toggle('hidden-ui', uiHidden);
-}
-
 function zoomBy(amount){
-  // amount > 0：zoom out；amount < 0：zoom in
-  // 先用 FOV 放到 140，再用 camDist 外移做小星球（把 camDist 上限拉大）
-  if (amount > 0){
-    if (fovDeg < 140){
-      fovDeg = clamp(fovDeg + amount, 20, 140);
-    } else {
-      camDist = clamp(camDist + amount * 0.08, 0, 12.0); // ✅ 以前 3.0 太小，改 12
-    }
-  } else {
-    if (camDist > 0){
-      camDist = clamp(camDist + amount * 0.10, 0, 12.0); // ✅ 縮回來更快
-    } else {
-      fovDeg = clamp(fovDeg + amount, 20, 140);
-    }
-  }
-
-  const mode = (camDist > 0.15) ? '小星球' : '360';
-  setBadge(`模式：${mode}｜FOV：${Math.round(fovDeg)}°｜外觀距離 ${camDist.toFixed(2)}`);
+  // ✅ amount > 0 = zoom in（張開兩指）→ FOV 變小
+  // ✅ amount < 0 = zoom out（捏合）→ FOV 變大
+  fovDeg = clamp(fovDeg - amount * 28.0, SETTINGS.FOV_MIN, SETTINGS.FOV_MAX);
+  updatePlanetParams();
 }
-
 
 function onDown(e){
   e.preventDefault();
-  viewer.setPointerCapture?.(e.pointerId);
+  canvas.setPointerCapture?.(e.pointerId);
   pointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
-  if(pointers.size===1) tapCandidate = {x:e.clientX,y:e.clientY,t:performance.now()};
-  else tapCandidate = null;
+
+  if(pointers.size===1){
+    tapCandidate = {x:e.clientX,y:e.clientY,t:performance.now()};
+  }else{
+    tapCandidate = null;
+  }
 }
+
 function onMove(e){
   if(!pointers.has(e.pointerId)) return;
   e.preventDefault();
+
   const p = pointers.get(e.pointerId);
   const nx=e.clientX, ny=e.clientY;
   const dx=nx-p.x, dy=ny-p.y;
   pointers.set(e.pointerId, {x:nx,y:ny});
 
   if(pointers.size===1){
-    const sens=0.0045;
-    yaw += dx*sens;
-    pitch += dy*sens;
+    const sens = SETTINGS.DRAG_SENS;
+
+    // ✅ Unity-like：水平拖＝yaw 繞Y；垂直拖＝pitch 繞X
+    yaw   += dx * sens;
+    pitch -= dy * sens;
+
     pitch = clamp(pitch, -1.45, 1.45);
+
     if(tapCandidate){
       const dist = Math.hypot(nx-tapCandidate.x, ny-tapCandidate.y);
       if(dist>6) tapCandidate=null;
@@ -516,10 +599,14 @@ function onMove(e){
   }else if(pointers.size===2){
     const pts = Array.from(pointers.values());
     const d = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
-    if(!onMove._last){ onMove._last=d; return; }
+    if(!onMove._last){ onMove._last=d; tapCandidate=null; return; }
+
     const delta = d - onMove._last;
     onMove._last = d;
-    zoomBy(delta*0.05);
+
+    // ✅ 張開 delta>0 => zoom in
+    zoomBy(delta * SETTINGS.PINCH_SENS);
+
     tapCandidate=null;
   }
 }
@@ -530,19 +617,26 @@ function onUp(e){
   pointers.delete(e.pointerId);
   if(pointers.size<2) onMove._last=0;
 
+  // tap toggle UI（只在「真的輕點」才觸發）
   if(tapCandidate){
     const dt = performance.now()-tapCandidate.t;
     if(dt<260) toggleUI();
     tapCandidate=null;
   }
 }
-function onWheel(e){ e.preventDefault(); zoomBy(-e.deltaY*0.02); }
+
+function onWheel(e){
+  e.preventDefault();
+  // wheel：往下通常想 zoom out → amount 變負
+  zoomBy(-e.deltaY * SETTINGS.WHEEL_SENS);
+}
 
 async function loadTextureFromBlob(blob){
   if(!gl) return;
-  const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 
+  const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
   const url = URL.createObjectURL(blob);
+
   const img = await new Promise((resolve,reject)=>{
     const im = new Image();
     im.onload = ()=> resolve(im);
@@ -554,7 +648,7 @@ async function loadTextureFromBlob(blob){
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
 
-  // 太大就縮小，避免手機 max texture 限制
+  // 太大就縮小，避免手機 MAX_TEXTURE_SIZE 直接爆掉
   const maxSide = Math.max(w,h);
   if(maxSide > maxTex){
     const s = maxTex / maxSide;
@@ -568,20 +662,29 @@ async function loadTextureFromBlob(blob){
 
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, tex);
+
+  // 不靠 UNPACK_FLIP 來翻（由 shader + SETTINGS.FLIP_V 控）
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, source);
+
+  // ✅ 用 RGBA 更保險（手機/瀏覽器相容性較好）
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
 
   URL.revokeObjectURL(url);
 }
 
 function draw(){
   if(!gl) return;
+
   gl.useProgram(prog);
   gl.uniform1f(loc.uAspect, aspect);
   gl.uniform1f(loc.uFov, fovDeg*Math.PI/180);
   gl.uniform1f(loc.uYaw, yaw);
   gl.uniform1f(loc.uPitch, pitch);
-  gl.uniform1f(loc.uCamDist, camDist);
+
+  gl.uniform1f(loc.uPlanet, planetBlend);
+  gl.uniform1f(loc.uPlanetR, planetR);
+  gl.uniform1f(loc.uFlipV, SETTINGS.FLIP_V ? 1.0 : 0.0);
+
   gl.drawArrays(gl.TRIANGLES, 0, 6);
   raf = requestAnimationFrame(draw);
 }
@@ -593,7 +696,12 @@ async function openViewerAt(index){
 
   viewer.classList.add('show');
   toggleUI(false);
-  yaw=0; pitch=0; fovDeg=80; camDist=0;
+
+  // reset view
+  yaw=0; pitch=0;
+  fovDeg=80;
+  updatePlanetParams();
+
   setLabel(`${p.name}（${CURRENT+1}/${PHOTOS.length}）`);
   setBadge('載入中…');
 
@@ -606,7 +714,8 @@ async function openViewerAt(index){
   raf = requestAnimationFrame(draw);
 
   await loadTextureFromBlob(p.imageBlob);
-  setBadge(`模式：360｜FOV：80°｜縮放：內部｜${p.timeLabel}`);
+  updatePlanetParams();
+  setBadge(`${vBadge.textContent}｜${p.timeLabel}`);
 }
 
 function closeViewer(){
@@ -632,18 +741,22 @@ function screenshot(){
 }
 
 /* ===== UI binding ===== */
-document.getElementById('fileInput').addEventListener('change', async (e)=>{
+const fileInput = document.getElementById('fileInput');
+document.getElementById('addBtn').addEventListener('click', ()=> fileInput.click());
+
+fileInput.addEventListener('change', async (e)=>{
   const files = e.target.files;
   e.target.value = '';
   await addFiles(files);
 });
+
 document.getElementById('clearBtn').addEventListener('click', ()=>{
-  // revoke thumb URLs
   for(const p of PHOTOS){ try{ URL.revokeObjectURL(p.thumbUrl); }catch(_){ } }
   PHOTOS = [];
   renderLibrary();
   toast('已清空');
 });
+
 backBtn.addEventListener('click', closeViewer);
 prevBtn.addEventListener('click', ()=> openViewerAt((CURRENT-1+PHOTOS.length)%PHOTOS.length));
 nextBtn.addEventListener('click', ()=> openViewerAt((CURRENT+1)%PHOTOS.length));
@@ -659,5 +772,3 @@ renderLibrary();
 </script>
 </body>
 </html>
-
-
