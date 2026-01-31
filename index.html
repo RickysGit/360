@@ -30,7 +30,14 @@
       user-select:none;
       white-space:nowrap;
     }
-    input[type=file]{ display:none; }
+    input[type=file]{
+  position: fixed;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
     main{ padding:12px; }
     .info{
       border:1px solid rgba(255,255,255,.08);
@@ -367,7 +374,7 @@ function initGL(){
       float phi = asin(clamp(hit.y, -1.0, 1.0));
       float u = 0.5 + theta / (2.0*3.141592653589793);
       u = fract(u); // 重要：自己做水平循環（避免 NPOT + REPEAT 問題）
-      float v = 0.5 - phi / 3.141592653589793;
+      float v = 0.5 + phi / 3.141592653589793;
 
       vec3 col = texture2D(uTex, vec2(u,v)).rgb;
       gl_FragColor = vec4(col,1.0);
@@ -458,13 +465,26 @@ function toggleUI(force){
 }
 
 function zoomBy(amount){
-  const prev = fovDeg;
-  fovDeg = clamp(fovDeg + amount, 20, 140);
-  if(prev >= 139.5 && amount > 0) camDist = clamp(camDist + amount*0.02, 0, 3.0);
-  if(amount < 0) camDist = clamp(camDist + amount*0.03, 0, 3.0);
+  // amount > 0：zoom out；amount < 0：zoom in
+  // 先用 FOV 放到 140，再用 camDist 外移做小星球（把 camDist 上限拉大）
+  if (amount > 0){
+    if (fovDeg < 140){
+      fovDeg = clamp(fovDeg + amount, 20, 140);
+    } else {
+      camDist = clamp(camDist + amount * 0.08, 0, 12.0); // ✅ 以前 3.0 太小，改 12
+    }
+  } else {
+    if (camDist > 0){
+      camDist = clamp(camDist + amount * 0.10, 0, 12.0); // ✅ 縮回來更快
+    } else {
+      fovDeg = clamp(fovDeg + amount, 20, 140);
+    }
+  }
+
   const mode = (camDist > 0.15) ? '小星球' : '360';
-  setBadge(`模式：${mode}｜FOV：${Math.round(fovDeg)}°｜縮放：${camDist>0.15 ? ('外觀距離 '+camDist.toFixed(2)) : '內部'}`);
+  setBadge(`模式：${mode}｜FOV：${Math.round(fovDeg)}°｜外觀距離 ${camDist.toFixed(2)}`);
 }
+
 
 function onDown(e){
   e.preventDefault();
@@ -496,7 +516,7 @@ function onMove(e){
     if(!onMove._last){ onMove._last=d; return; }
     const delta = d - onMove._last;
     onMove._last = d;
-    zoomBy(delta*0.07);
+    zoomBy(delta*0.05);
     tapCandidate=null;
   }
 }
@@ -636,3 +656,4 @@ renderLibrary();
 </script>
 </body>
 </html>
+
