@@ -11,92 +11,58 @@
     <script src="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/little-planet-adapter@5/index.min.js"></script>
 
     <style>
-        :root { --primary: #007AFF; --bg: #f2f2f7; }
+        :root { --primary: #007AFF; --danger: #FF3B30; --bg: #f2f2f7; }
         body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); color: #1c1c1e; overflow-x: hidden; }
         
         /* 列表介面樣式 */
-        #gallery-view { padding: 20px; max-width: 1000px; margin: auto; padding-bottom: 50px; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding: 10px; }
-        .upload-btn { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: transform 0.1s; }
-        .upload-btn:active { transform: scale(0.95); }
+        #gallery-view { padding: 20px; max-width: 1000px; margin: auto; padding-bottom: 80px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding: 10px; flex-wrap: wrap; gap: 10px; }
+        .header-btns { display: flex; gap: 10px; }
         
+        .upload-btn { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+        .manage-btn { background: #e5e5ea; color: #007AFF; border: none; padding: 10px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+        .delete-btn { background: var(--danger); color: white; border: none; padding: 10px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; display: none; }
+
         .month-group { margin-bottom: 35px; }
         .month-title { font-size: 22px; font-weight: 700; margin-bottom: 15px; color: #3a3a3c; border-left: 5px solid var(--primary); padding-left: 12px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
-        .thumb-card { background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer; transition: 0.2s; }
-        .thumb-card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
-        .thumb-card img { width: 100%; height: 110px; object-fit: cover; display: block; }
+        
+        /* 縮圖卡片 */
+        .thumb-card { background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer; position: relative; transition: 0.2s; }
+        .thumb-card img { width: 100%; height: 110px; object-fit: cover; display: block; pointer-events: none; }
         .thumb-info { padding: 10px; font-size: 12px; color: #8e8e93; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        /* 選取模式樣式 */
+        .select-overlay { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; background: rgba(0,0,0,0.2); display: none; z-index: 5; }
+        .thumb-card.selected .select-overlay { background: var(--primary); border-color: var(--primary); }
+        .thumb-card.selected .select-overlay::after { content: '✓'; color: white; display: flex; justify-content: center; align-items: center; font-size: 16px; font-weight: bold; height: 100%; }
+        .manage-mode .select-overlay { display: block; }
+        .manage-mode .thumb-card:hover { transform: none; }
 
-        /* 360 閱覽器介面樣式 */
+        /* 360 閱覽器 */
         #viewer-container { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 2000; }
         #panorama { width: 100%; height: 100%; }
         
-        /* 按鈕基礎樣式與位置優化 */
         .overlay-ui { position: absolute; z-index: 2001; transition: opacity 0.3s ease, transform 0.3s ease; }
         .overlay-ui.hidden { opacity: 0; pointer-events: none; transform: translateY(10px); }
         
-        /* 頂部按鈕：往下移動避免被手機狀態列遮擋 */
-        #btn-back { 
-            top: 30px;
-            left: 20px; 
-            background: rgba(0,0,0,0.6); 
-            color: white; 
-            border: none; 
-            padding: 12px 20px; 
-            border-radius: 25px; 
-            backdrop-filter: blur(15px); 
-            cursor: pointer;
-            -webkit-backdrop-filter: blur(15px);
-        }
-
-        #btn-download { 
-            top: 30px; /* 與返回鍵對齊 */
-            right: 20px; 
-            background: var(--primary); 
-            color: white; 
-            border: none; 
-            padding: 12px 20px; 
-            border-radius: 25px; 
-            font-weight: 600; 
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,122,255,0.4);
-        }
+        #btn-back { top: 50px; left: 20px; background: rgba(0,0,0,0.6); color: white; border: none; padding: 12px 20px; border-radius: 25px; backdrop-filter: blur(15px); cursor: pointer; }
+        #btn-download { top: 50px; right: 20px; background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 25px; font-weight: 600; cursor: pointer; }
         
-        /* 底部切換按鈕：往上移動避免被手機虛擬按鍵遮擋 */
-        .nav-controls { 
-            bottom: 80px; /* 從 40px 上移到 80px */
-            left: 50%; 
-            transform: translateX(-50%); 
-            display: flex; 
-            gap: 60px; 
-        }
-        .nav-btn { 
-            background: rgba(255,255,255,0.25); 
-            color: white; 
-            border: 1px solid rgba(255,255,255,0.4); 
-            width: 64px; 
-            height: 64px; 
-            border-radius: 50%; 
-            font-size: 24px; 
-            backdrop-filter: blur(15px); 
-            -webkit-backdrop-filter: blur(15px);
-            cursor: pointer; 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .nav-btn:active { background: rgba(255,255,255,0.4); }
-
-        .psv-loader { color: var(--primary) !important; }
+        .nav-controls { bottom: 80px; left: 50%; transform: translateX(-50%); display: flex; gap: 60px; }
+        .nav-btn { background: rgba(255,255,255,0.25); color: white; border: 1px solid rgba(255,255,255,0.4); width: 64px; height: 64px; border-radius: 50%; font-size: 24px; backdrop-filter: blur(15px); cursor: pointer; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
 
 <div id="gallery-view">
     <div class="header">
-        <h1>360°相簿</h1>
-        <button class="upload-btn" onclick="document.getElementById('file-input').click()">＋ 上傳全景圖</button>
+        <h1>360° 相簿</h1>
+        <div class="header-btns">
+            <button class="manage-btn" id="manage-toggle">管理</button>
+            <button class="delete-btn" id="delete-selected">刪除選取</button>
+            <button class="upload-btn" id="upload-trigger">＋ 上傳圖</button>
+        </div>
         <input type="file" id="file-input" accept="image/*" style="display: none;">
     </div>
     <div id="album-list"></div>
@@ -108,8 +74,8 @@
     <button id="btn-download" class="overlay-ui">擷取當前畫面</button>
     
     <div class="nav-controls overlay-ui">
-        <button class="nav-btn" id="prev-btn" title="上一張">❮</button>
-        <button class="nav-btn" id="next-btn" title="下一張">❯</button>
+        <button class="nav-btn" id="prev-btn">❮</button>
+        <button class="nav-btn" id="next-btn">❯</button>
     </div>
 </div>
 
@@ -119,9 +85,11 @@
     let currentIndex = 0;
     let viewer = null;
     let uiVisible = true;
+    let isManageMode = false;
+    let selectedIds = new Set();
 
     // 1. 初始化 IndexedDB
-    const request = indexedDB.open("ProPanoGallery_V2", 1);
+    const request = indexedDB.open("ProPanoGallery_V3", 1);
     request.onupgradeneeded = e => {
         db = e.target.result;
         db.createObjectStore("photos", { keyPath: "id", autoIncrement: true });
@@ -131,7 +99,8 @@
         loadPhotos();
     };
 
-    // 2. 處理檔案上傳
+    // 2. 檔案上傳
+    document.getElementById('upload-trigger').onclick = () => document.getElementById('file-input').click();
     document.getElementById('file-input').addEventListener('change', e => {
         const file = e.target.files[0];
         if (!file) return;
@@ -152,7 +121,7 @@
         reader.readAsDataURL(file);
     });
 
-    // 3. 讀取並渲染列表
+    // 3. 讀取與渲染清單
     function loadPhotos() {
         const tx = db.transaction("photos", "readonly");
         tx.objectStore("photos").getAll().onsuccess = e => {
@@ -179,31 +148,75 @@
 
             groups[month].forEach(photo => {
                 const card = document.createElement('div');
-                card.className = 'thumb-card';
-                card.innerHTML = `<img src="${photo.data}"><div class="thumb-info">${photo.name}</div>`;
-                card.onclick = () => openViewer(photo.idx);
+                card.className = `thumb-card ${selectedIds.has(photo.id) ? 'selected' : ''}`;
+                card.innerHTML = `<div class="select-overlay"></div><img src="${photo.data}"><div class="thumb-info">${photo.name}</div>`;
+                
+                card.onclick = () => {
+                    if (isManageMode) {
+                        toggleSelect(photo.id, card);
+                    } else {
+                        openViewer(photo.idx);
+                    }
+                };
                 grid.appendChild(card);
-            });
+            } );
             listDiv.appendChild(section);
         }
     }
 
-    // 4. 360 核心控制 (穩定性修復版)
+    // 4. 管理功能（選取與刪除）
+    document.getElementById('manage-toggle').onclick = function() {
+        isManageMode = !isManageMode;
+        this.innerText = isManageMode ? "取消" : "管理";
+        this.style.background = isManageMode ? "#8e8e93" : "#e5e5ea";
+        this.style.color = isManageMode ? "white" : "#007AFF";
+        document.getElementById('delete-selected').style.display = isManageMode ? "block" : "none";
+        document.getElementById('gallery-view').classList.toggle('manage-mode', isManageMode);
+        if (!isManageMode) {
+            selectedIds.clear();
+            renderGallery();
+        }
+    };
+
+    function toggleSelect(id, element) {
+        if (selectedIds.has(id)) {
+            selectedIds.delete(id);
+            element.classList.remove('selected');
+        } else {
+            selectedIds.add(id);
+            element.classList.add('selected');
+        }
+        document.getElementById('delete-selected').innerText = `刪除選取 (${selectedIds.size})`;
+    }
+
+    document.getElementById('delete-selected').onclick = () => {
+        if (selectedIds.size === 0) return;
+        if (!confirm(`確定要刪除這 ${selectedIds.size} 張照片嗎？`)) return;
+
+        const tx = db.transaction("photos", "readwrite");
+        const store = tx.objectStore("photos");
+        selectedIds.forEach(id => store.delete(id));
+        tx.oncomplete = () => {
+            selectedIds.clear();
+            isManageMode = false;
+            document.getElementById('manage-toggle').click();
+            loadPhotos();
+        };
+    };
+
+    // 5. 360 核心控制
     function openViewer(index) {
         currentIndex = index;
         document.getElementById('gallery-view').style.display = 'none';
-        const container = document.getElementById('viewer-container');
-        container.style.display = 'block';
+        document.getElementById('viewer-container').style.display = 'block';
         uiVisible = true;
         toggleUI();
 
-        // 延遲確保容器佈局完成，防止黑屏
         setTimeout(() => {
             if (!viewer) {
                 initPSV(currentImages[currentIndex].data);
             } else {
                 viewer.setPanorama(currentImages[currentIndex].data).then(() => {
-                    // 切換後重置到舒適的預覽視距
                     viewer.animate({ zoom: 30, speed: '1s' });
                 });
             }
@@ -217,14 +230,11 @@
             panorama: imageSrc,
             mousewheel: true,
             mousewheelSpeed: 2,
-            minFov: 1,    
-            maxFov: 170,  
-            defaultZoomLvl: 30, 
-            fisheye: 2,
-            navbar: false
+            minFov: 1, maxFov: 170, defaultZoomLvl: 30, fisheye: 2, navbar: false,
+            // 關鍵修正：允許保留繪圖緩衝區以便截圖
+            rendererOptions: { preserveDrawingBuffer: true }
         });
 
-        // 點擊屏幕隱藏/顯示 UI
         viewer.addEventListener('click', () => {
             uiVisible = !uiVisible;
             toggleUI();
@@ -232,19 +242,38 @@
     }
 
     function toggleUI() {
-        document.querySelectorAll('.overlay-ui').forEach(el => {
-            el.classList.toggle('hidden', !uiVisible);
-        });
+        document.querySelectorAll('.overlay-ui').forEach(el => el.classList.toggle('hidden', !uiVisible));
     }
 
-    // 5. 按鈕事件監聽
+    // 6. 截圖功能修正
+    document.getElementById('btn-download').onclick = () => {
+        // PSV 渲染在 canvas 上，我們需要直接抓取該 canvas
+        const canvas = document.querySelector('#panorama canvas');
+        if (!canvas) {
+            alert("找不到畫面載體");
+            return;
+        }
+        
+        try {
+            const dataUrl = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `360_Capture_${Date.now()}.png`;
+            link.href = dataUrl;
+            link.click();
+        } catch (e) {
+            alert("截圖失敗，請確保圖片來源安全");
+            console.error(e);
+        }
+    };
+
+    // 返回與切換
     document.getElementById('btn-back').onclick = () => {
         document.getElementById('gallery-view').style.display = 'block';
         document.getElementById('viewer-container').style.display = 'none';
     };
 
     document.getElementById('prev-btn').onclick = (e) => {
-        e.stopPropagation(); // 防止觸發 viewer 點擊事件
+        e.stopPropagation();
         if (currentIndex < currentImages.length - 1) {
             currentIndex++;
             viewer.setPanorama(currentImages[currentIndex].data);
@@ -258,19 +287,7 @@
             viewer.setPanorama(currentImages[currentIndex].data);
         }
     };
-
-    document.getElementById('btn-download').onclick = () => {
-        const canvas = document.querySelector('#panorama canvas');
-        if (!canvas) return;
-        const link = document.createElement('a');
-        link.download = `Capture_360_${Date.now()}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-    };
 </script>
 
 </body>
 </html>
-
-
-
