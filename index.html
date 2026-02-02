@@ -2,55 +2,67 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>360° 本地相簿 - 小星球版</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>專業級 360° 小星球相簿</title>
     
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.min.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/three/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/little-planet-adapter@5/index.min.js"></script>
+
     <style>
-        :root { --primary: #2196F3; }
-        body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
+        :root { --primary: #007AFF; --bg: #f5f5f7; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: #333; }
         
         /* 列表介面 */
-        #gallery-view { padding: 20px; }
-        .upload-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .month-group { margin-bottom: 30px; }
-        .month-title { border-left: 5px solid var(--primary); padding-left: 10px; margin-bottom: 15px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
-        .thumb-card { background: #fff; border-radius: 8px; overflow: hidden; cursor: pointer; transition: 0.2s; position: relative; }
-        .thumb-card:hover { transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
-        .thumb-card img { width: 100%; height: 100px; object-fit: cover; }
-        .thumb-info { padding: 5px; font-size: 12px; text-align: center; }
+        #gallery-view { padding: 20px; max-width: 1200px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .upload-btn { background: var(--primary); color: white; padding: 12px 24px; border-radius: 12px; cursor: pointer; border: none; font-weight: 600; }
+        
+        .month-group { margin-bottom: 40px; }
+        .month-title { font-size: 1.5rem; font-weight: bold; border-bottom: 2px solid #ddd; padding-bottom: 10px; margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; }
+        .thumb-card { background: white; border-radius: 15px; overflow: hidden; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .thumb-card:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
+        .thumb-card img { width: 100%; height: 120px; object-fit: cover; background: #eee; }
+        .thumb-info { padding: 10px; font-size: 13px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* 全景閱讀器介面 */
-        #viewer-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 1000; }
+        /* 閱讀器介面 */
+        #viewer-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; }
         #panorama { width: 100%; height: 100%; }
         
-        /* 控制元件 */
-        .overlay-ui { position: absolute; z-index: 1001; transition: opacity 0.3s; }
-        #btn-back { top: 20px; left: 20px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
-        #btn-download { top: 20px; right: 20px; background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
-        .nav-controls { bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; }
-        .nav-btn { background: rgba(255,255,255,0.8); border: none; padding: 15px; border-radius: 50%; cursor: pointer; font-size: 20px; }
+        .overlay-ui { position: absolute; z-index: 2001; transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1); opacity: 1; }
+        .overlay-ui.hidden { opacity: 0; pointer-events: none; }
         
-        .hidden { opacity: 0; pointer-events: none; }
+        #btn-back { top: 30px; left: 30px; background: rgba(0,0,0,0.6); color: white; border: none; padding: 10px 20px; border-radius: 30px; cursor: pointer; backdrop-filter: blur(5px); }
+        #btn-download { top: 30px; right: 30px; background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 30px; cursor: pointer; font-weight: 600; }
+        
+        .nav-controls { bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 40px; align-items: center; }
+        .nav-btn { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); width: 60px; height: 60px; border-radius: 50%; cursor: pointer; font-size: 24px; backdrop-filter: blur(10px); }
+        .nav-btn:hover { background: rgba(255,255,255,0.4); }
+
+        /* 小星球模式提示 */
+        .hint { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.6); font-size: 12px; pointer-events: none; }
     </style>
 </head>
 <body>
 
 <div id="gallery-view">
-    <div class="upload-section">
-        <h2>我的 360° 全景相簿</h2>
+    <div class="header">
+        <h1>360° 全景回憶</h1>
+        <button class="upload-btn" onclick="document.getElementById('file-input').click()">＋ 上傳新相片</button>
         <input type="file" id="file-input" accept="image/*" style="display: none;">
-        <button onclick="document.getElementById('file-input').click()" style="padding: 10px 20px; cursor: pointer;">上傳 360 圖片</button>
     </div>
     <div id="album-list"></div>
 </div>
 
 <div id="viewer-container">
     <div id="panorama"></div>
-    <button id="btn-back" class="overlay-ui">← 返回列表</button>
-    <button id="btn-download" class="overlay-ui">下載截圖</button>
+    <button id="btn-back" class="overlay-ui">← 退出閱覽</button>
+    <button id="btn-download" class="overlay-ui">💾 截圖下載</button>
+    
+    <div class="hint overlay-ui">滾輪縮小可觸發 Tiny Planet 效果</div>
+    
     <div class="nav-controls overlay-ui">
         <button class="nav-btn" id="prev-btn">❮</button>
         <button class="nav-btn" id="next-btn">❯</button>
@@ -64,8 +76,8 @@
     let viewer = null;
     let uiVisible = true;
 
-    // 1. 初始化 Database (IndexedDB)
-    const request = indexedDB.open("PanoGalleryDB", 1);
+    // 1. 資料庫初始化
+    const request = indexedDB.open("ProPanoGallery", 1);
     request.onupgradeneeded = e => {
         db = e.target.result;
         db.createObjectStore("photos", { keyPath: "id", autoIncrement: true });
@@ -75,92 +87,103 @@
         loadPhotos();
     };
 
-    // 2. 處理檔案上傳
-    document.getElementById('file-input').addEventListener('change', function(e) {
+    // 2. 處理上傳
+    document.getElementById('file-input').addEventListener('change', e => {
         const file = e.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = function(event) {
+        reader.onload = event => {
+            const now = new Date();
             const photoData = {
                 name: file.name,
                 data: event.target.result,
-                timestamp: new Date().getTime(),
-                monthKey: new Date().getFullYear() + "年" + (new Date().getMonth() + 1) + "月"
+                timestamp: now.getTime(),
+                monthKey: `${now.getFullYear()}年${now.getMonth() + 1}月`
             };
-            const transaction = db.transaction(["photos"], "readwrite");
-            transaction.objectStore("photos").add(photoData);
-            transaction.oncomplete = () => loadPhotos();
+            const tx = db.transaction("photos", "readwrite");
+            tx.objectStore("photos").add(photoData);
+            tx.oncomplete = () => loadPhotos();
         };
         reader.readAsDataURL(file);
     });
 
-    // 3. 讀取並顯示圖片列表
+    // 3. 載入列表
     function loadPhotos() {
-        const transaction = db.transaction(["photos"], "readonly");
-        const store = transaction.objectStore("photos");
-        const request = store.getAll();
-
-        request.onsuccess = () => {
-            currentImages = request.result.reverse(); // 新的在前
-            const listDiv = document.getElementById('album-list');
-            listDiv.innerHTML = "";
-
-            const groups = {};
-            currentImages.forEach((img, index) => {
-                if (!groups[img.monthKey]) groups[img.monthKey] = [];
-                groups[img.monthKey].push({ ...img, originalIndex: index });
-            });
-
-            for (const month in groups) {
-                const section = document.createElement('div');
-                section.className = 'month-group';
-                section.innerHTML = `<h3 class="month-title">${month}</h3><div class="grid"></div>`;
-                const grid = section.querySelector('.grid');
-
-                groups[month].forEach(photo => {
-                    const card = document.createElement('div');
-                    card.className = 'thumb-card';
-                    card.innerHTML = `<img src="${photo.data}"><div class="thumb-info">${photo.name}</div>`;
-                    card.onclick = () => openViewer(photo.originalIndex);
-                    grid.appendChild(card);
-                });
-                listDiv.appendChild(section);
-            }
+        const tx = db.transaction("photos", "readonly");
+        const store = tx.objectStore("photos");
+        store.getAll().onsuccess = e => {
+            currentImages = e.target.result.sort((a,b) => b.timestamp - a.timestamp);
+            renderGallery();
         };
     }
 
-    // 4. 開啟 360 閱覽器
+    function renderGallery() {
+        const listDiv = document.getElementById('album-list');
+        listDiv.innerHTML = "";
+        const groups = {};
+
+        currentImages.forEach((img, idx) => {
+            if (!groups[img.monthKey]) groups[img.monthKey] = [];
+            groups[img.monthKey].push({ ...img, idx });
+        });
+
+        for (const month in groups) {
+            const section = document.createElement('div');
+            section.className = 'month-group';
+            section.innerHTML = `<div class="month-title">${month}</div><div class="grid"></div>`;
+            const grid = section.querySelector('.grid');
+
+            groups[month].forEach(photo => {
+                const card = document.createElement('div');
+                card.className = 'thumb-card';
+                card.innerHTML = `<img src="${photo.data}"><div class="thumb-info">${photo.name}</div>`;
+                card.onclick = () => openViewer(photo.idx);
+                grid.appendChild(card);
+            });
+            listDiv.appendChild(section);
+        }
+    }
+
+    // 4. 開啟 360 閱覽（核心：Little Planet 適配器）
     function openViewer(index) {
         currentIndex = index;
         document.getElementById('gallery-view').style.display = 'none';
         document.getElementById('viewer-container').style.display = 'block';
-        initPannellum(currentImages[currentIndex].data);
+        uiVisible = true;
+        toggleUI();
+        initPSV(currentImages[currentIndex].data);
     }
 
-    function initPannellum(imageSrc) {
+    function initPSV(imageSrc) {
         if (viewer) viewer.destroy();
-        viewer = pannellum.viewer('panorama', {
-            "type": "equirectangular",
-            "panorama": imageSrc,
-            "autoLoad": true,
-            "hfov": 100, // 初始視角
-            "maxHfov": 150, // 縮放上限，越大越能看到小星球
-            "minHfov": 30,
-            "friction": 0.1,
-            "showControls": false // 隱藏預設控制，我們自製
+
+        viewer = new PhotoSphereViewer.Viewer({
+            container: 'panorama',
+            adapter: [PhotoSphereViewer.LittlePlanetAdapter], // 使用小星球適配器
+            panorama: imageSrc,
+            loadingImg: 'https://photo-sphere-viewer.js.org/assets/loader.gif',
+            touchmoveTwoFingers: false,
+            mousewheel: true,
+            defaultZoomLvl: 0, // 初始狀態
+            fisheye: 2, // 這是關鍵：數值越高，小星球的立體感越強
+            navbar: false // 隱藏預設導覽列，使用我們自訂的
         });
 
-        // 點擊切換 UI 顯示
-        document.getElementById('panorama').onclick = () => {
+        // 點擊屏幕切換 UI
+        viewer.addEventListener('click', () => {
             uiVisible = !uiVisible;
-            document.querySelectorAll('.overlay-ui').forEach(el => {
-                el.classList.toggle('hidden', !uiVisible);
-            });
-        };
+            toggleUI();
+        });
     }
 
-    // 5. 切換圖片與返回
+    function toggleUI() {
+        document.querySelectorAll('.overlay-ui').forEach(el => {
+            el.classList.toggle('hidden', !uiVisible);
+        });
+    }
+
+    // 5. 導覽與功能
     document.getElementById('btn-back').onclick = () => {
         document.getElementById('gallery-view').style.display = 'block';
         document.getElementById('viewer-container').style.display = 'none';
@@ -170,26 +193,24 @@
     document.getElementById('prev-btn').onclick = () => {
         if (currentIndex < currentImages.length - 1) {
             currentIndex++;
-            initPannellum(currentImages[currentIndex].data);
+            viewer.setPanorama(currentImages[currentIndex].data);
         }
     };
 
     document.getElementById('next-btn').onclick = () => {
         if (currentIndex > 0) {
             currentIndex--;
-            initPannellum(currentImages[currentIndex].data);
+            viewer.setPanorama(currentImages[currentIndex].data);
         }
     };
 
-    // 6. 截圖下載功能
+    // 6. 截圖下載 (使用 PSV 內建方法)
     document.getElementById('btn-download').onclick = () => {
         const canvas = document.querySelector('#panorama canvas');
-        if (canvas) {
-            const link = document.createElement('a');
-            link.download = `360_Capture_${new Date().getTime()}.png`;
-            link.href = canvas.toDataURL("image/png");
-            link.click();
-        }
+        const link = document.createElement('a');
+        link.download = `TinyPlanet_${new Date().getTime()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
     };
 </script>
 
