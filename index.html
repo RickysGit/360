@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>專業級 360° 小星球相簿</title>
+    <title>360°相簿</title>
     
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.min.css"/>
     <script src="https://cdn.jsdelivr.net/npm/three/build/three.min.js"></script>
@@ -12,7 +12,7 @@
 
     <style>
         :root { --primary: #007AFF; --bg: #f5f5f7; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: #333; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background: var(--bg); overflow-x: hidden; }
         
         /* 列表介面 */
         #gallery-view { padding: 20px; max-width: 1200px; margin: auto; }
@@ -20,37 +20,36 @@
         .upload-btn { background: var(--primary); color: white; padding: 12px 24px; border-radius: 12px; cursor: pointer; border: none; font-weight: 600; }
         
         .month-group { margin-bottom: 40px; }
-        .month-title { font-size: 1.5rem; font-weight: bold; border-bottom: 2px solid #ddd; padding-bottom: 10px; margin-bottom: 20px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; }
-        .thumb-card { background: white; border-radius: 15px; overflow: hidden; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        .thumb-card:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
-        .thumb-card img { width: 100%; height: 120px; object-fit: cover; background: #eee; }
-        .thumb-info { padding: 10px; font-size: 13px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .month-title { font-size: 1.5rem; font-weight: bold; border-left: 6px solid var(--primary); padding-left: 15px; margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        .thumb-card { background: white; border-radius: 15px; overflow: hidden; cursor: pointer; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .thumb-card:hover { transform: scale(1.05); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .thumb-card img { width: 100%; height: 130px; object-fit: cover; }
+        .thumb-info { padding: 12px; font-size: 13px; color: #444; text-align: center; }
 
         /* 閱讀器介面 */
         #viewer-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; }
         #panorama { width: 100%; height: 100%; }
         
-        .overlay-ui { position: absolute; z-index: 2001; transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1); opacity: 1; }
-        .overlay-ui.hidden { opacity: 0; pointer-events: none; }
+        .overlay-ui { position: absolute; z-index: 2001; transition: all 0.4s ease; opacity: 1; }
+        .overlay-ui.hidden { opacity: 0; pointer-events: none; transform: translateY(10px); }
         
-        #btn-back { top: 30px; left: 30px; background: rgba(0,0,0,0.6); color: white; border: none; padding: 10px 20px; border-radius: 30px; cursor: pointer; backdrop-filter: blur(5px); }
-        #btn-download { top: 30px; right: 30px; background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 30px; cursor: pointer; font-weight: 600; }
+        #btn-back { top: 30px; left: 30px; background: rgba(0,0,0,0.7); color: white; border: none; padding: 12px 25px; border-radius: 50px; cursor: pointer; backdrop-filter: blur(10px); }
+        #btn-download { top: 30px; right: 30px; background: var(--primary); color: white; border: none; padding: 12px 25px; border-radius: 50px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 15px rgba(0,122,255,0.3); }
         
-        .nav-controls { bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 40px; align-items: center; }
-        .nav-btn { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); width: 60px; height: 60px; border-radius: 50%; cursor: pointer; font-size: 24px; backdrop-filter: blur(10px); }
-        .nav-btn:hover { background: rgba(255,255,255,0.4); }
+        .nav-controls { bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 50px; }
+        .nav-btn { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.2); width: 65px; height: 65px; border-radius: 50%; cursor: pointer; font-size: 24px; backdrop-filter: blur(15px); }
+        .nav-btn:active { background: rgba(255,255,255,0.4); }
 
-        /* 小星球模式提示 */
-        .hint { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.6); font-size: 12px; pointer-events: none; }
+        .zoom-hint { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.5); font-size: 12px; letter-spacing: 1px; }
     </style>
 </head>
 <body>
 
 <div id="gallery-view">
     <div class="header">
-        <h1>360° 全景回憶</h1>
-        <button class="upload-btn" onclick="document.getElementById('file-input').click()">＋ 上傳新相片</button>
+        <h1>360° 本地相簿</h1>
+        <button class="upload-btn" onclick="document.getElementById('file-input').click()">＋ 上傳全景圖片</button>
         <input type="file" id="file-input" accept="image/*" style="display: none;">
     </div>
     <div id="album-list"></div>
@@ -58,10 +57,10 @@
 
 <div id="viewer-container">
     <div id="panorama"></div>
-    <button id="btn-back" class="overlay-ui">← 退出閱覽</button>
-    <button id="btn-download" class="overlay-ui">💾 截圖下載</button>
+    <button id="btn-back" class="overlay-ui">退出閱覽</button>
+    <button id="btn-download" class="overlay-ui">保存當前畫面</button>
     
-    <div class="hint overlay-ui">滾輪縮小可觸發 Tiny Planet 效果</div>
+    <div class="zoom-hint overlay-ui">滾輪用力向後撥：觸發極小星球</div>
     
     <div class="nav-controls overlay-ui">
         <button class="nav-btn" id="prev-btn">❮</button>
@@ -76,8 +75,8 @@
     let viewer = null;
     let uiVisible = true;
 
-    // 1. 資料庫初始化
-    const request = indexedDB.open("ProPanoGallery", 1);
+    // 1. 初始化資料庫
+    const request = indexedDB.open("UltraPanoGallery", 1);
     request.onupgradeneeded = e => {
         db = e.target.result;
         db.createObjectStore("photos", { keyPath: "id", autoIncrement: true });
@@ -108,7 +107,6 @@
         reader.readAsDataURL(file);
     });
 
-    // 3. 載入列表
     function loadPhotos() {
         const tx = db.transaction("photos", "readonly");
         const store = tx.objectStore("photos");
@@ -145,7 +143,7 @@
         }
     }
 
-    // 4. 開啟 360 閱覽（核心：Little Planet 適配器）
+    // 3. 核心：極致縮放的小星球閱覽器
     function openViewer(index) {
         currentIndex = index;
         document.getElementById('gallery-view').style.display = 'none';
@@ -160,17 +158,21 @@
 
         viewer = new PhotoSphereViewer.Viewer({
             container: 'panorama',
-            adapter: [PhotoSphereViewer.LittlePlanetAdapter], // 使用小星球適配器
+            adapter: [PhotoSphereViewer.LittlePlanetAdapter],
             panorama: imageSrc,
             loadingImg: 'https://photo-sphere-viewer.js.org/assets/loader.gif',
-            touchmoveTwoFingers: false,
             mousewheel: true,
-            defaultZoomLvl: 0, // 初始狀態
-            fisheye: 2, // 這是關鍵：數值越高，小星球的立體感越強
-            navbar: false // 隱藏預設導覽列，使用我們自訂的
+            mousewheelSpeed: 2, // 提高縮放靈敏度
+            
+            // 強化的縮放範圍
+            minFov: 1,    // 放大極限：可以縮放至極細微的點
+            maxFov: 170,  // 縮小極限：170度視角會讓星球變得非常小且圓
+            defaultZoomLvl: 0,
+            fisheye: 2,   // 增強立體感
+            
+            navbar: false
         });
 
-        // 點擊屏幕切換 UI
         viewer.addEventListener('click', () => {
             uiVisible = !uiVisible;
             toggleUI();
@@ -183,7 +185,7 @@
         });
     }
 
-    // 5. 導覽與功能
+    // 4. 交互控制
     document.getElementById('btn-back').onclick = () => {
         document.getElementById('gallery-view').style.display = 'block';
         document.getElementById('viewer-container').style.display = 'none';
@@ -204,11 +206,10 @@
         }
     };
 
-    // 6. 截圖下載 (使用 PSV 內建方法)
     document.getElementById('btn-download').onclick = () => {
         const canvas = document.querySelector('#panorama canvas');
         const link = document.createElement('a');
-        link.download = `TinyPlanet_${new Date().getTime()}.png`;
+        link.download = `TinyPlanet_Art.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
     };
