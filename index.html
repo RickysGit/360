@@ -1,728 +1,197 @@
-<!doctype html>
-<html lang="zh-Hant">
+<!DOCTYPE html>
+<html lang="zh-TW">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>360 圖片手機圖庫</title>
-  <style>
-    :root{ --bg:#0b0e14; --panel:rgba(18,23,38,.78); --text:#e8eefc; --muted:#94a3b8; --border:rgba(255,255,255,.10); }
-    *{ box-sizing:border-box; }
-    html,body{ height:100%; margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, "Noto Sans TC", "Segoe UI", Roboto, Arial; }
-    header{
-      position:sticky; top:0; z-index:10;
-      padding:12px 12px 10px;
-      background: linear-gradient(180deg, rgba(11,14,20,.95), rgba(11,14,20,.65));
-      backdrop-filter: blur(8px);
-      border-bottom:1px solid rgba(255,255,255,.06);
-      display:flex; gap:10px; align-items:center; justify-content:space-between;
-    }
-    .left{ min-width:0; }
-    .title{ font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .sub{ font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
-    .btn{
-      border:1px solid var(--border);
-      background: var(--panel);
-      color:var(--text);
-      padding:10px 10px;
-      border-radius:12px;
-      font-size:13px;
-      cursor:pointer;
-      user-select:none;
-      white-space:nowrap;
-    }
-    input[type=file]{
-      position: fixed;
-      left: -9999px;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>360° 本地相簿 - 小星球版</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+    
+    <style>
+        :root { --primary: #2196F3; }
+        body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
+        
+        /* 列表介面 */
+        #gallery-view { padding: 20px; }
+        .upload-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .month-group { margin-bottom: 30px; }
+        .month-title { border-left: 5px solid var(--primary); padding-left: 10px; margin-bottom: 15px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+        .thumb-card { background: #fff; border-radius: 8px; overflow: hidden; cursor: pointer; transition: 0.2s; position: relative; }
+        .thumb-card:hover { transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .thumb-card img { width: 100%; height: 100px; object-fit: cover; }
+        .thumb-info { padding: 5px; font-size: 12px; text-align: center; }
 
-    main{ padding:12px; }
-    .info{
-      border:1px solid rgba(255,255,255,.08);
-      background: rgba(18,23,38,.35);
-      border-radius:14px;
-      padding:10px 12px;
-      margin-bottom:12px;
-      color:var(--muted);
-      font-size:12px;
-      line-height:1.45;
-    }
-    .section{ margin:14px 0 22px; }
-    .section h2{ margin:0 0 10px; font-size:13px; color:var(--text); display:flex; gap:8px; align-items:center; }
-    .pill{ font-size:12px; padding:3px 8px; border:1px solid var(--border); border-radius:999px; color:var(--muted); background: rgba(18,23,38,.45); }
-    .grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:10px; }
-    .card{ border:1px solid rgba(255,255,255,.08); border-radius:14px; overflow:hidden; background: rgba(18,23,38,.45); cursor:pointer; }
-    .thumb{ width:100%; height:110px; object-fit:cover; display:block; background:#000; }
-    .meta{ padding:8px 8px 10px; }
-    .name{ font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .time{ font-size:11px; color:var(--muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-    .viewer{ position:fixed; inset:0; background:#000; z-index:999; display:none; }
-    .viewer.show{ display:block; }
-    #glcanvas{ width:100%; height:100%; display:block; }
-    .v-ui{ position:absolute; inset:0; pointer-events:none; }
-    .v-top{ position:absolute; top:10px; left:10px; right:10px; display:flex; justify-content:space-between; gap:10px; }
-    .v-top .row{ display:flex; gap:8px; pointer-events:auto; }
-    .v-bottom{ position:absolute; bottom:12px; left:10px; right:10px; display:flex; justify-content:center; pointer-events:none; }
-    .nav{
-      pointer-events:auto; display:flex; align-items:center; gap:10px;
-      padding:8px 10px; border-radius:999px; border:1px solid var(--border);
-      background: rgba(18,23,38,.55); backdrop-filter: blur(8px);
-      max-width: 96vw;
-    }
-    .label{ font-size:12px; max-width:50vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .badge{
-      position:absolute; left:10px; bottom:66px;
-      padding:8px 10px; border-radius:10px; border:1px solid var(--border);
-      background: rgba(18,23,38,.55); backdrop-filter: blur(8px);
-      color:var(--muted); font-size:12px; pointer-events:none; max-width:94vw; line-height:1.35;
-    }
-    .hidden-ui .v-ui{ display:none; }
-    .toast{
-      position:fixed; left:50%; bottom:16px; transform:translateX(-50%);
-      background: rgba(18,23,38,.85); border:1px solid var(--border);
-      padding:10px 12px; border-radius:999px; font-size:12px;
-      opacity:0; pointer-events:none; transition: opacity .2s ease, transform .2s ease;
-    }
-    .toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
-  </style>
+        /* 全景閱讀器介面 */
+        #viewer-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 1000; }
+        #panorama { width: 100%; height: 100%; }
+        
+        /* 控制元件 */
+        .overlay-ui { position: absolute; z-index: 1001; transition: opacity 0.3s; }
+        #btn-back { top: 20px; left: 20px; background: rgba(0,0,0,0.5); color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
+        #btn-download { top: 20px; right: 20px; background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
+        .nav-controls { bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; }
+        .nav-btn { background: rgba(255,255,255,0.8); border: none; padding: 15px; border-radius: 50%; cursor: pointer; font-size: 20px; }
+        
+        .hidden { opacity: 0; pointer-events: none; }
+    </style>
 </head>
 <body>
-<header>
-  <div class="left">
-    <div class="title">360 圖片手機圖庫</div>
-    <div class="sub" id="subline">拖曳環視｜捏合縮放（張開＝放大）｜縮很遠會變 Tiny Planet｜點一下畫面隱藏 UI</div>
-  </div>
-  <div style="display:flex; gap:8px; align-items:center;">
-    <button class="btn" id="addBtn" type="button">新增圖片</button>
-    <button class="btn" id="importFolderBtn" style="display:none;">匯入資料夾</button>
-    <button class="btn" id="clearBtn" type="button">清空</button>
-  </div>
-</header>
 
-<main>
-  <div class="info" id="infoBox">目前 0 張。用「新增圖片」匯入（手機最穩）。若你在 Chrome/Edge 且是 HTTPS，會多出「匯入資料夾」。</div>
-  <div id="library"></div>
-</main>
-
-<input id="fileInput" type="file" accept="image/*" multiple />
-
-<div class="viewer" id="viewer">
-  <canvas id="glcanvas"></canvas>
-  <div class="v-ui">
-    <div class="v-top">
-      <div class="row">
-        <button class="btn" id="backBtn" type="button">返回</button>
-      </div>
-      <div class="row">
-        <button class="btn" id="shotBtn" type="button">截圖</button>
-      </div>
+<div id="gallery-view">
+    <div class="upload-section">
+        <h2>我的 360° 全景相簿</h2>
+        <input type="file" id="file-input" accept="image/*" style="display: none;">
+        <button onclick="document.getElementById('file-input').click()" style="padding: 10px 20px; cursor: pointer;">上傳 360 圖片</button>
     </div>
-    <div class="v-bottom">
-      <div class="nav">
-        <button class="btn" id="prevBtn" type="button">◀</button>
-        <div class="label" id="vLabel">—</div>
-        <button class="btn" id="nextBtn" type="button">▶</button>
-      </div>
-    </div>
-    <div class="badge" id="vBadge">—</div>
-  </div>
+    <div id="album-list"></div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div id="viewer-container">
+    <div id="panorama"></div>
+    <button id="btn-back" class="overlay-ui">← 返回列表</button>
+    <button id="btn-download" class="overlay-ui">下載截圖</button>
+    <div class="nav-controls overlay-ui">
+        <button class="nav-btn" id="prev-btn">❮</button>
+        <button class="nav-btn" id="next-btn">❯</button>
+    </div>
+</div>
 
 <script>
-/* ==========================
-   設定（你要試方向就改這裡）
-   ✅ 你要「上下 + 左右」都反轉：兩個都設 1
-========================== */
-const SETTINGS = {
-  FLIP_V: 1, // ✅ 上下反轉
-  FLIP_U: 1, // ✅ 左右反轉
+    let db;
+    let currentImages = [];
+    let currentIndex = 0;
+    let viewer = null;
+    let uiVisible = true;
 
-  DRAG_SENS: 0.0045,
-  PINCH_SENS: 0.015,
-  WHEEL_SENS: 0.0035,
-
-  FOV_MIN: 25,
-  FOV_MAX: 155,
-
-  PLANET_FOV_START: 125,
-  PLANET_FOV_FULL: 150,
-
-  PLANET_R_MAX: 1.25,
-  PLANET_R_MIN: 0.25,
-};
-
-/* ===== toast ===== */
-const toastEl = document.getElementById('toast');
-let toastTimer = 0;
-function toast(msg, ms=1600){
-  toastEl.textContent = msg;
-  toastEl.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(()=> toastEl.classList.remove('show'), ms);
-}
-
-/* ===== month grouping ===== */
-function ymKey(date){
-  const y = date.getFullYear();
-  const m = String(date.getMonth()+1).padStart(2,'0');
-  return `${y}-${m}`;
-}
-function fmtYM(key){
-  const [y,m] = key.split('-');
-  return `${y}年${parseInt(m,10)}月`;
-}
-function fmtTime(d){
-  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
-  const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
-  return `${y}/${m}/${dd} ${hh}:${mm}`;
-}
-function esc(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
-
-let PHOTOS = [];
-let CURRENT = -1;
-
-function updateInfo(){
-  document.getElementById('infoBox').textContent =
-    `目前 ${PHOTOS.length} 張。用「新增圖片」匯入（手機最穩）。若你在 Chrome/Edge 且是 HTTPS，會多出「匯入資料夾」。`;
-}
-
-/* ===== thumbnail ===== */
-async function makeThumb(file){
-  const maxSide = 420;
-  if('createImageBitmap' in window){
-    try{
-      const bmp = await createImageBitmap(file);
-      let tw=bmp.width, th=bmp.height;
-      if(Math.max(tw,th)>maxSide){
-        const s=maxSide/Math.max(tw,th);
-        tw=Math.round(tw*s); th=Math.round(th*s);
-      }
-      const c=document.createElement('canvas');
-      c.width=tw; c.height=th;
-      c.getContext('2d', {alpha:false}).drawImage(bmp,0,0,tw,th);
-      bmp.close?.();
-      const blob = await new Promise(res=> c.toBlob(res,'image/jpeg',0.85));
-      return URL.createObjectURL(blob);
-    }catch(_){}
-  }
-  const url = URL.createObjectURL(file);
-  const img = await new Promise((resolve,reject)=>{
-    const im=new Image();
-    im.onload=()=>resolve(im);
-    im.onerror=reject;
-    im.src=url;
-  });
-  const c=document.createElement('canvas');
-  let tw=img.naturalWidth, th=img.naturalHeight;
-  if(Math.max(tw,th)>maxSide){
-    const s=maxSide/Math.max(tw,th);
-    tw=Math.round(tw*s); th=Math.round(th*s);
-  }
-  c.width=tw; c.height=th;
-  c.getContext('2d',{alpha:false}).drawImage(img,0,0,tw,th);
-  URL.revokeObjectURL(url);
-  const blob = await new Promise(res=> c.toBlob(res,'image/jpeg',0.85));
-  return URL.createObjectURL(blob);
-}
-
-/* ===== render library ===== */
-function renderLibrary(){
-  updateInfo();
-  const lib = document.getElementById('library');
-
-  if(PHOTOS.length===0){
-    lib.innerHTML = `<div class="section"><h2>目前沒有圖片 <span class="pill">按「新增圖片」</span></h2></div>`;
-    return;
-  }
-
-  const groups = new Map();
-  for(const p of PHOTOS){
-    if(!groups.has(p.ym)) groups.set(p.ym, []);
-    groups.get(p.ym).push(p);
-  }
-  const keys = Array.from(groups.keys()).sort((a,b)=> b.localeCompare(a));
-
-  let html = '';
-  for(const k of keys){
-    const arr = groups.get(k);
-    html += `<div class="section">
-      <h2>${fmtYM(k)} <span class="pill">${arr.length} 張</span></h2>
-      <div class="grid">
-        ${arr.map(p=>`
-          <div class="card" data-id="${p.id}">
-            <img class="thumb" src="${p.thumbUrl}" alt="">
-            <div class="meta">
-              <div class="name">${esc(p.name)}</div>
-              <div class="time">${esc(p.timeLabel)}</div>
-            </div>
-          </div>`).join('')}
-      </div>
-    </div>`;
-  }
-  lib.innerHTML = html;
-  lib.querySelectorAll('.card').forEach(el=>{
-    el.addEventListener('click', ()=>{
-      const id = el.getAttribute('data-id');
-      const idx = PHOTOS.findIndex(x=>x.id===id);
-      if(idx>=0) openViewerAt(idx);
-    });
-  });
-}
-
-/* ===== add files ===== */
-function uid(){ return 'p_'+Math.random().toString(16).slice(2)+'_'+Date.now().toString(16); }
-
-async function addFiles(fileList){
-  const files = Array.from(fileList||[]);
-  if(files.length===0) return;
-
-  toast(`匯入中：${files.length} 張…`, 1400);
-
-  for(const f of files){
-    if(!f.type || !f.type.startsWith('image/')) continue;
-    const t = new Date(f.lastModified || Date.now());
-    const rec = {
-      id: uid(),
-      name: f.name || '(未命名)',
-      sortTime: t.getTime(),
-      ym: ymKey(t),
-      timeLabel: `時間：${fmtTime(t)}`,
-      imageBlob: f,
-      thumbUrl: await makeThumb(f)
+    // 1. 初始化 Database (IndexedDB)
+    const request = indexedDB.open("PanoGalleryDB", 1);
+    request.onupgradeneeded = e => {
+        db = e.target.result;
+        db.createObjectStore("photos", { keyPath: "id", autoIncrement: true });
     };
-    PHOTOS.push(rec);
-  }
+    request.onsuccess = e => {
+        db = e.target.result;
+        loadPhotos();
+    };
 
-  PHOTOS.sort((a,b)=> b.sortTime - a.sortTime);
-  renderLibrary();
-  toast('匯入完成');
-}
+    // 2. 處理檔案上傳
+    document.getElementById('file-input').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
 
-/* ===== optional: import folder ===== */
-const importFolderBtn = document.getElementById('importFolderBtn');
-async function importFromFolder(){
-  if(!('showDirectoryPicker' in window)){
-    toast('此瀏覽器不支援匯入資料夾');
-    return;
-  }
-  if(!window.isSecureContext){
-    toast('匯入資料夾需要 HTTPS（安全環境）');
-    return;
-  }
-  try{
-    const dir = await window.showDirectoryPicker();
-    let picked = [];
-    for await (const [, handle] of dir.entries()){
-      if(handle.kind !== 'file') continue;
-      const file = await handle.getFile();
-      if(file.type && file.type.startsWith('image/')) picked.push(file);
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const photoData = {
+                name: file.name,
+                data: event.target.result,
+                timestamp: new Date().getTime(),
+                monthKey: new Date().getFullYear() + "年" + (new Date().getMonth() + 1) + "月"
+            };
+            const transaction = db.transaction(["photos"], "readwrite");
+            transaction.objectStore("photos").add(photoData);
+            transaction.oncomplete = () => loadPhotos();
+        };
+        reader.readAsDataURL(file);
+    });
+
+    // 3. 讀取並顯示圖片列表
+    function loadPhotos() {
+        const transaction = db.transaction(["photos"], "readonly");
+        const store = transaction.objectStore("photos");
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+            currentImages = request.result.reverse(); // 新的在前
+            const listDiv = document.getElementById('album-list');
+            listDiv.innerHTML = "";
+
+            const groups = {};
+            currentImages.forEach((img, index) => {
+                if (!groups[img.monthKey]) groups[img.monthKey] = [];
+                groups[img.monthKey].push({ ...img, originalIndex: index });
+            });
+
+            for (const month in groups) {
+                const section = document.createElement('div');
+                section.className = 'month-group';
+                section.innerHTML = `<h3 class="month-title">${month}</h3><div class="grid"></div>`;
+                const grid = section.querySelector('.grid');
+
+                groups[month].forEach(photo => {
+                    const card = document.createElement('div');
+                    card.className = 'thumb-card';
+                    card.innerHTML = `<img src="${photo.data}"><div class="thumb-info">${photo.name}</div>`;
+                    card.onclick = () => openViewer(photo.originalIndex);
+                    grid.appendChild(card);
+                });
+                listDiv.appendChild(section);
+            }
+        };
     }
-    if(picked.length){
-      await addFiles(picked);
-      toast(`資料夾匯入完成：${picked.length} 張`, 1800);
+
+    // 4. 開啟 360 閱覽器
+    function openViewer(index) {
+        currentIndex = index;
+        document.getElementById('gallery-view').style.display = 'none';
+        document.getElementById('viewer-container').style.display = 'block';
+        initPannellum(currentImages[currentIndex].data);
     }
-  }catch(err){
-    console.warn(err);
-  }
-}
 
-/* ===== Viewer ===== */
-const viewer = document.getElementById('viewer');
-const canvas = document.getElementById('glcanvas');
-const backBtn = document.getElementById('backBtn');
-const prevBtn = document.getElementById('prevBtn');
-const nextBtn = document.getElementById('nextBtn');
-const shotBtn = document.getElementById('shotBtn');
-const vLabel  = document.getElementById('vLabel');
-const vBadge  = document.getElementById('vBadge');
+    function initPannellum(imageSrc) {
+        if (viewer) viewer.destroy();
+        viewer = pannellum.viewer('panorama', {
+            "type": "equirectangular",
+            "panorama": imageSrc,
+            "autoLoad": true,
+            "hfov": 100, // 初始視角
+            "maxHfov": 150, // 縮放上限，越大越能看到小星球
+            "minHfov": 30,
+            "friction": 0.1,
+            "showControls": false // 隱藏預設控制，我們自製
+        });
 
-let gl=null, prog=null, tex=null, loc={}, raf=0;
-let yaw=0, pitch=0, fovDeg=80, aspect=1;
-let planetBlend=0, planetR=SETTINGS.PLANET_R_MAX;
-const pointers = new Map();
-let tapCandidate=null, uiHidden=false;
-
-function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-function lerp(a,b,t){ return a + (b-a)*t; }
-function setBadge(s){ vBadge.textContent = s; }
-function setLabel(s){ vLabel.textContent = s; }
-function toggleUI(force){
-  uiHidden = (typeof force==='boolean') ? force : !uiHidden;
-  viewer.classList.toggle('hidden-ui', uiHidden);
-}
-
-function updatePlanetParams(){
-  const start = SETTINGS.PLANET_FOV_START;
-  const full  = SETTINGS.PLANET_FOV_FULL;
-  planetBlend = clamp((fovDeg - start) / Math.max(1e-6, (full - start)), 0, 1);
-  planetR = lerp(SETTINGS.PLANET_R_MAX, SETTINGS.PLANET_R_MIN, planetBlend);
-
-  const mode = (planetBlend > 0.01) ? 'Tiny Planet' : '360';
-  setBadge(`模式：${mode}｜FOV：${Math.round(fovDeg)}°｜planet=${planetBlend.toFixed(2)}｜R=${planetR.toFixed(2)}`);
-}
-
-function initGL(){
-  gl = canvas.getContext('webgl', { antialias:true, preserveDrawingBuffer:true });
-  if(!gl){ toast('此瀏覽器不支援 WebGL'); return false; }
-
-  const vsSrc = `
-    attribute vec2 aPos;
-    varying vec2 vUv;
-    void main(){ vUv = aPos*0.5+0.5; gl_Position = vec4(aPos,0.0,1.0); }
-  `;
-
-  const fsSrc = `
-precision highp float;
-varying vec2 vUv;
-
-uniform sampler2D uTex;
-uniform float uAspect, uFov, uYaw, uPitch;
-uniform float uPlanet;
-uniform float uPlanetR;
-uniform float uFlipV;
-uniform float uFlipU;
-
-const float PI = 3.141592653589793;
-
-vec3 rotY(vec3 v, float a){
-  float c = cos(a), s = sin(a);
-  return vec3(c*v.x + s*v.z, v.y, -s*v.x + c*v.z);
-}
-vec3 rotX(vec3 v, float a){
-  float c = cos(a), s = sin(a);
-  return vec3(v.x, c*v.y - s*v.z, s*v.y + c*v.z);
-}
-
-vec2 panoUV(vec3 dir){
-  dir = normalize(dir);
-
-  float lon = atan(dir.x, dir.z);
-  float lat = asin(clamp(dir.y, -1.0, 1.0));
-
-  float u = 0.5 + lon / (2.0 * PI);
-  u = fract(u);
-
-  float v = 0.5 - lat / PI;
-
-  // ✅ 你要求：上下反轉 + 左右反轉
-  if(uFlipU > 0.5) u = 1.0 - u;
-  if(uFlipV > 0.5) v = 1.0 - v;
-
-  return vec2(u, v);
-}
-
-void main(){
-  vec2 p = vUv * 2.0 - 1.0;
-  p.x *= uAspect;
-
-  float tanHalf = tan(uFov * 0.5);
-  vec3 dirN = normalize(vec3(p.x * tanHalf, -p.y * tanHalf, 1.0));
-  dirN = rotY(dirN, uYaw);
-  dirN = rotX(dirN, uPitch);
-  vec2 uvN = panoUV(dirN);
-
-  float r = length(p);
-  float a = atan(p.y, p.x);
-  float latP = -PI/2.0 + 2.0 * atan( r / (2.0 * max(0.0001, uPlanetR)) );
-  float lonP = a;
-
-  vec3 dirP = vec3(cos(latP) * sin(lonP), sin(latP), cos(latP) * cos(lonP));
-  dirP = rotY(dirP, uYaw);
-  dirP = rotX(dirP, uPitch);
-  vec2 uvP = panoUV(dirP);
-
-  float t = clamp(uPlanet, 0.0, 1.0);
-  vec2 uv = mix(uvN, uvP, t);
-
-  vec3 col = texture2D(uTex, uv).rgb;
-  gl_FragColor = vec4(col, 1.0);
-}
-  `;
-
-  function compile(type, src){
-    const sh = gl.createShader(type);
-    gl.shaderSource(sh, src);
-    gl.compileShader(sh);
-    if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
-      console.error(gl.getShaderInfoLog(sh));
-      toast('Shader 編譯失敗');
-      return null;
+        // 點擊切換 UI 顯示
+        document.getElementById('panorama').onclick = () => {
+            uiVisible = !uiVisible;
+            document.querySelectorAll('.overlay-ui').forEach(el => {
+                el.classList.toggle('hidden', !uiVisible);
+            });
+        };
     }
-    return sh;
-  }
 
-  const vs = compile(gl.VERTEX_SHADER, vsSrc);
-  const fs = compile(gl.FRAGMENT_SHADER, fsSrc);
-  if(!vs || !fs) return false;
+    // 5. 切換圖片與返回
+    document.getElementById('btn-back').onclick = () => {
+        document.getElementById('gallery-view').style.display = 'block';
+        document.getElementById('viewer-container').style.display = 'none';
+        if (viewer) viewer.destroy();
+    };
 
-  prog = gl.createProgram();
-  gl.attachShader(prog, vs);
-  gl.attachShader(prog, fs);
-  gl.linkProgram(prog);
-  if(!gl.getProgramParameter(prog, gl.LINK_STATUS)){
-    console.error(gl.getProgramInfoLog(prog));
-    toast('Shader 連結失敗');
-    return false;
-  }
-  gl.useProgram(prog);
+    document.getElementById('prev-btn').onclick = () => {
+        if (currentIndex < currentImages.length - 1) {
+            currentIndex++;
+            initPannellum(currentImages[currentIndex].data);
+        }
+    };
 
-  const buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-    -1,-1,  1,-1,  -1, 1,
-    -1, 1,  1,-1,   1, 1
-  ]), gl.STATIC_DRAW);
+    document.getElementById('next-btn').onclick = () => {
+        if (currentIndex > 0) {
+            currentIndex--;
+            initPannellum(currentImages[currentIndex].data);
+        }
+    };
 
-  const aPos = gl.getAttribLocation(prog, 'aPos');
-  gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-  loc.uTex     = gl.getUniformLocation(prog, 'uTex');
-  loc.uAspect  = gl.getUniformLocation(prog, 'uAspect');
-  loc.uFov     = gl.getUniformLocation(prog, 'uFov');
-  loc.uYaw     = gl.getUniformLocation(prog, 'uYaw');
-  loc.uPitch   = gl.getUniformLocation(prog, 'uPitch');
-  loc.uPlanet  = gl.getUniformLocation(prog, 'uPlanet');
-  loc.uPlanetR = gl.getUniformLocation(prog, 'uPlanetR');
-  loc.uFlipV   = gl.getUniformLocation(prog, 'uFlipV');
-  loc.uFlipU   = gl.getUniformLocation(prog, 'uFlipU');
-
-  tex = gl.createTexture();
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.uniform1i(loc.uTex, 0);
-
-  resize();
-  window.addEventListener('resize', resize);
-
-  canvas.style.touchAction = 'none';
-  canvas.addEventListener('pointerdown', onDown, {passive:false});
-  canvas.addEventListener('pointermove', onMove, {passive:false});
-  canvas.addEventListener('pointerup', onUp, {passive:false});
-  canvas.addEventListener('pointercancel', onUp, {passive:false});
-  canvas.addEventListener('wheel', onWheel, {passive:false});
-
-  [backBtn, prevBtn, nextBtn, shotBtn].forEach(btn=>{
-    btn.addEventListener('pointerdown', (e)=> e.stopPropagation());
-    btn.addEventListener('click', (e)=> e.stopPropagation());
-  });
-
-  return true;
-}
-
-function resize(){
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const w = Math.floor(viewer.clientWidth * dpr);
-  const h = Math.floor(viewer.clientHeight * dpr);
-  canvas.width=w; canvas.height=h;
-  if(gl){ gl.viewport(0,0,w,h); aspect = w/h; }
-}
-
-function zoomBy(amount){
-  fovDeg = clamp(fovDeg - amount * 28.0, SETTINGS.FOV_MIN, SETTINGS.FOV_MAX);
-  updatePlanetParams();
-}
-
-function onDown(e){
-  e.preventDefault();
-  canvas.setPointerCapture?.(e.pointerId);
-  pointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
-  if(pointers.size===1) tapCandidate = {x:e.clientX,y:e.clientY,t:performance.now()};
-  else tapCandidate = null;
-}
-
-function onMove(e){
-  if(!pointers.has(e.pointerId)) return;
-  e.preventDefault();
-
-  const p = pointers.get(e.pointerId);
-  const nx=e.clientX, ny=e.clientY;
-  const dx=nx-p.x, dy=ny-p.y;
-  pointers.set(e.pointerId, {x:nx,y:ny});
-
-  if(pointers.size===1){
-    const sens = SETTINGS.DRAG_SENS;
-    yaw   += dx * sens;
-    pitch -= dy * sens;
-    pitch = clamp(pitch, -1.45, 1.45);
-
-    if(tapCandidate){
-      const dist = Math.hypot(nx-tapCandidate.x, ny-tapCandidate.y);
-      if(dist>6) tapCandidate=null;
-    }
-  }else if(pointers.size===2){
-    const pts = Array.from(pointers.values());
-    const d = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
-    if(!onMove._last){ onMove._last=d; tapCandidate=null; return; }
-    const delta = d - onMove._last;
-    onMove._last = d;
-
-    // 張開 delta>0 => zoom in
-    zoomBy(delta * SETTINGS.PINCH_SENS);
-    tapCandidate=null;
-  }
-}
-onMove._last = 0;
-
-function onUp(e){
-  e.preventDefault();
-  pointers.delete(e.pointerId);
-  if(pointers.size<2) onMove._last=0;
-
-  if(tapCandidate){
-    const dt = performance.now()-tapCandidate.t;
-    if(dt<260) toggleUI();
-    tapCandidate=null;
-  }
-}
-
-function onWheel(e){
-  e.preventDefault();
-  zoomBy(-e.deltaY * SETTINGS.WHEEL_SENS);
-}
-
-async function loadTextureFromBlob(blob){
-  if(!gl) return;
-
-  const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-  const url = URL.createObjectURL(blob);
-
-  const img = await new Promise((resolve,reject)=>{
-    const im = new Image();
-    im.onload = ()=> resolve(im);
-    im.onerror = reject;
-    im.src = url;
-  });
-
-  let source = img;
-  const w = img.naturalWidth || img.width;
-  const h = img.naturalHeight || img.height;
-
-  const maxSide = Math.max(w,h);
-  if(maxSide > maxTex){
-    const s = maxTex / maxSide;
-    const tw = Math.max(1, Math.floor(w*s));
-    const th = Math.max(1, Math.floor(h*s));
-    const c = document.createElement('canvas');
-    c.width=tw; c.height=th;
-    c.getContext('2d',{alpha:false}).drawImage(img,0,0,tw,th);
-    source = c;
-  }
-
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
-
-  URL.revokeObjectURL(url);
-}
-
-function draw(){
-  if(!gl) return;
-
-  gl.useProgram(prog);
-  gl.uniform1f(loc.uAspect, aspect);
-  gl.uniform1f(loc.uFov, fovDeg*Math.PI/180);
-  gl.uniform1f(loc.uYaw, yaw);
-  gl.uniform1f(loc.uPitch, pitch);
-
-  gl.uniform1f(loc.uPlanet, planetBlend);
-  gl.uniform1f(loc.uPlanetR, planetR);
-  gl.uniform1f(loc.uFlipV, SETTINGS.FLIP_V ? 1.0 : 0.0);
-  gl.uniform1f(loc.uFlipU, SETTINGS.FLIP_U ? 1.0 : 0.0);
-
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
-  raf = requestAnimationFrame(draw);
-}
-
-async function openViewerAt(index){
-  if(index<0 || index>=PHOTOS.length) return;
-  CURRENT = index;
-  const p = PHOTOS[CURRENT];
-
-  viewer.classList.add('show');
-  toggleUI(false);
-
-  yaw=0; pitch=0;
-  fovDeg=80;
-  updatePlanetParams();
-
-  setLabel(`${p.name}（${CURRENT+1}/${PHOTOS.length}）`);
-  setBadge('載入中…');
-
-  if(!gl){
-    const ok = initGL();
-    if(!ok) return;
-  }
-  resize();
-  cancelAnimationFrame(raf);
-  raf = requestAnimationFrame(draw);
-
-  await loadTextureFromBlob(p.imageBlob);
-  updatePlanetParams();
-  setBadge(`${vBadge.textContent}｜${p.timeLabel}`);
-}
-
-function closeViewer(){
-  viewer.classList.remove('show');
-  cancelAnimationFrame(raf);
-}
-
-function screenshot(){
-  try{
-    canvas.toBlob((blob)=>{
-      if(!blob){ toast('截圖失敗'); return; }
-      const a=document.createElement('a');
-      const u=URL.createObjectURL(blob);
-      a.href=u; a.download=`360_screenshot_${Date.now()}.png`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(()=>URL.revokeObjectURL(u),800);
-      toast('已下載截圖');
-    },'image/png');
-  }catch(err){
-    console.warn(err);
-    toast('截圖失敗（瀏覽器限制）');
-  }
-}
-
-/* ===== UI binding ===== */
-const fileInput = document.getElementById('fileInput');
-document.getElementById('addBtn').addEventListener('click', ()=> fileInput.click());
-
-fileInput.addEventListener('change', async (e)=>{
-  const files = e.target.files;
-  e.target.value = '';
-  await addFiles(files);
-});
-
-document.getElementById('clearBtn').addEventListener('click', ()=>{
-  for(const p of PHOTOS){ try{ URL.revokeObjectURL(p.thumbUrl); }catch(_){ } }
-  PHOTOS = [];
-  renderLibrary();
-  toast('已清空');
-});
-
-backBtn.addEventListener('click', closeViewer);
-prevBtn.addEventListener('click', ()=> openViewerAt((CURRENT-1+PHOTOS.length)%PHOTOS.length));
-nextBtn.addEventListener('click', ()=> openViewerAt((CURRENT+1)%PHOTOS.length));
-shotBtn.addEventListener('click', screenshot);
-
-if('showDirectoryPicker' in window && window.isSecureContext){
-  importFolderBtn.style.display = '';
-  importFolderBtn.addEventListener('click', importFromFolder);
-}
-
-/* init */
-renderLibrary();
+    // 6. 截圖下載功能
+    document.getElementById('btn-download').onclick = () => {
+        const canvas = document.querySelector('#panorama canvas');
+        if (canvas) {
+            const link = document.createElement('a');
+            link.download = `360_Capture_${new Date().getTime()}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        }
+    };
 </script>
+
 </body>
 </html>
