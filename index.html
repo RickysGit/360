@@ -6,15 +6,17 @@
     <title>360°相簿</title>
     
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.min.css"/>
+    
     <script src="https://cdn.jsdelivr.net/npm/three/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/little-planet-adapter@5/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/screenshot-plugin@5/index.min.js"></script>
 
     <style>
         :root { --primary: #007AFF; --danger: #FF3B30; --bg: #f2f2f7; }
         body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); color: #1c1c1e; overflow-x: hidden; }
         
-        /* 列表介面樣式 */
+        /* 列表介面 */
         #gallery-view { padding: 20px; max-width: 1000px; margin: auto; padding-bottom: 80px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding: 10px; flex-wrap: wrap; gap: 10px; }
         .header-btns { display: flex; gap: 10px; }
@@ -27,7 +29,6 @@
         .month-title { font-size: 22px; font-weight: 700; margin-bottom: 15px; color: #3a3a3c; border-left: 5px solid var(--primary); padding-left: 12px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
         
-        /* 縮圖卡片 */
         .thumb-card { background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer; position: relative; transition: 0.2s; }
         .thumb-card img { width: 100%; height: 110px; object-fit: cover; display: block; pointer-events: none; }
         .thumb-info { padding: 10px; font-size: 12px; color: #8e8e93; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -35,9 +36,8 @@
         /* 選取模式樣式 */
         .select-overlay { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; background: rgba(0,0,0,0.2); display: none; z-index: 5; }
         .thumb-card.selected .select-overlay { background: var(--primary); border-color: var(--primary); }
-        .thumb-card.selected .select-overlay::after { content: '✓'; color: white; display: flex; justify-content: center; align-items: center; font-size: 16px; font-weight: bold; height: 100%; }
+        .thumb-card.selected .select-overlay::after { content: '✓'; color: white; display: flex; justify-content: center; align-items: center; font-size: 14px; height: 100%; }
         .manage-mode .select-overlay { display: block; }
-        .manage-mode .thumb-card:hover { transform: none; }
 
         /* 360 閱覽器 */
         #viewer-container { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 2000; }
@@ -46,11 +46,11 @@
         .overlay-ui { position: absolute; z-index: 2001; transition: opacity 0.3s ease, transform 0.3s ease; }
         .overlay-ui.hidden { opacity: 0; pointer-events: none; transform: translateY(10px); }
         
-        #btn-back { top: 50px; left: 20px; background: rgba(0,0,0,0.6); color: white; border: none; padding: 12px 20px; border-radius: 25px; backdrop-filter: blur(15px); cursor: pointer; }
+        #btn-back { top: 50px; left: 20px; background: rgba(0,0,0,0.6); color: white; border: none; padding: 12px 20px; border-radius: 25px; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); cursor: pointer; }
         #btn-download { top: 50px; right: 20px; background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 25px; font-weight: 600; cursor: pointer; }
         
         .nav-controls { bottom: 80px; left: 50%; transform: translateX(-50%); display: flex; gap: 60px; }
-        .nav-btn { background: rgba(255,255,255,0.25); color: white; border: 1px solid rgba(255,255,255,0.4); width: 64px; height: 64px; border-radius: 50%; font-size: 24px; backdrop-filter: blur(15px); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .nav-btn { background: rgba(255,255,255,0.25); color: white; border: 1px solid rgba(255,255,255,0.4); width: 64px; height: 64px; border-radius: 50%; font-size: 24px; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); cursor: pointer; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
@@ -60,7 +60,7 @@
         <h1>360° 相簿</h1>
         <div class="header-btns">
             <button class="manage-btn" id="manage-toggle">管理</button>
-            <button class="delete-btn" id="delete-selected">刪除選取</button>
+            <button class="delete-btn" id="delete-selected">刪除選取 (0)</button>
             <button class="upload-btn" id="upload-trigger">＋ 上傳圖</button>
         </div>
         <input type="file" id="file-input" accept="image/*" style="display: none;">
@@ -88,8 +88,8 @@
     let isManageMode = false;
     let selectedIds = new Set();
 
-    // 1. 初始化 IndexedDB
-    const request = indexedDB.open("ProPanoGallery_V3", 1);
+    // 1. 初始化資料庫
+    const request = indexedDB.open("ProPanoGallery_V4", 1);
     request.onupgradeneeded = e => {
         db = e.target.result;
         db.createObjectStore("photos", { keyPath: "id", autoIncrement: true });
@@ -99,12 +99,11 @@
         loadPhotos();
     };
 
-    // 2. 檔案上傳
+    // 2. 上傳功能
     document.getElementById('upload-trigger').onclick = () => document.getElementById('file-input').click();
     document.getElementById('file-input').addEventListener('change', e => {
         const file = e.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = event => {
             const now = new Date();
@@ -115,13 +114,12 @@
                 monthKey: `${now.getFullYear()}年${now.getMonth() + 1}月`
             };
             const tx = db.transaction("photos", "readwrite");
-            tx.objectStore("photos").add(photoData);
-            tx.oncomplete = () => loadPhotos();
+            tx.objectStore("photos").add(photoData).onsuccess = () => loadPhotos();
         };
         reader.readAsDataURL(file);
     });
 
-    // 3. 讀取與渲染清單
+    // 3. 列表渲染
     function loadPhotos() {
         const tx = db.transaction("photos", "readonly");
         tx.objectStore("photos").getAll().onsuccess = e => {
@@ -134,7 +132,6 @@
         const listDiv = document.getElementById('album-list');
         listDiv.innerHTML = "";
         const groups = {};
-
         currentImages.forEach((img, idx) => {
             if (!groups[img.monthKey]) groups[img.monthKey] = [];
             groups[img.monthKey].push({ ...img, idx });
@@ -145,72 +142,46 @@
             section.className = 'month-group';
             section.innerHTML = `<div class="month-title">${month}</div><div class="grid"></div>`;
             const grid = section.querySelector('.grid');
-
             groups[month].forEach(photo => {
                 const card = document.createElement('div');
                 card.className = `thumb-card ${selectedIds.has(photo.id) ? 'selected' : ''}`;
                 card.innerHTML = `<div class="select-overlay"></div><img src="${photo.data}"><div class="thumb-info">${photo.name}</div>`;
-                
-                card.onclick = () => {
-                    if (isManageMode) {
-                        toggleSelect(photo.id, card);
-                    } else {
-                        openViewer(photo.idx);
-                    }
-                };
+                card.onclick = () => isManageMode ? toggleSelect(photo.id, card) : openViewer(photo.idx);
                 grid.appendChild(card);
-            } );
+            });
             listDiv.appendChild(section);
         }
     }
 
-    // 4. 管理功能（選取與刪除）
+    // 4. 管理與刪除
     document.getElementById('manage-toggle').onclick = function() {
         isManageMode = !isManageMode;
         this.innerText = isManageMode ? "取消" : "管理";
-        this.style.background = isManageMode ? "#8e8e93" : "#e5e5ea";
-        this.style.color = isManageMode ? "white" : "#007AFF";
         document.getElementById('delete-selected').style.display = isManageMode ? "block" : "none";
         document.getElementById('gallery-view').classList.toggle('manage-mode', isManageMode);
-        if (!isManageMode) {
-            selectedIds.clear();
-            renderGallery();
-        }
+        if (!isManageMode) { selectedIds.clear(); renderGallery(); }
     };
 
     function toggleSelect(id, element) {
-        if (selectedIds.has(id)) {
-            selectedIds.delete(id);
-            element.classList.remove('selected');
-        } else {
-            selectedIds.add(id);
-            element.classList.add('selected');
-        }
+        if (selectedIds.has(id)) { selectedIds.delete(id); element.classList.remove('selected'); }
+        else { selectedIds.add(id); element.classList.add('selected'); }
         document.getElementById('delete-selected').innerText = `刪除選取 (${selectedIds.size})`;
     }
 
     document.getElementById('delete-selected').onclick = () => {
-        if (selectedIds.size === 0) return;
-        if (!confirm(`確定要刪除這 ${selectedIds.size} 張照片嗎？`)) return;
-
+        if (selectedIds.size === 0 || !confirm(`確定刪除這 ${selectedIds.size} 張照片？`)) return;
         const tx = db.transaction("photos", "readwrite");
         const store = tx.objectStore("photos");
         selectedIds.forEach(id => store.delete(id));
-        tx.oncomplete = () => {
-            selectedIds.clear();
-            isManageMode = false;
-            document.getElementById('manage-toggle').click();
-            loadPhotos();
-        };
+        tx.oncomplete = () => { selectedIds.clear(); isManageMode = false; document.getElementById('manage-toggle').click(); loadPhotos(); };
     };
 
-    // 5. 360 核心控制
+    // 5. 360 核心控制 (使用官方截圖插件)
     function openViewer(index) {
         currentIndex = index;
         document.getElementById('gallery-view').style.display = 'none';
         document.getElementById('viewer-container').style.display = 'block';
-        uiVisible = true;
-        toggleUI();
+        uiVisible = true; toggleUI();
 
         setTimeout(() => {
             if (!viewer) {
@@ -227,43 +198,29 @@
         viewer = new PhotoSphereViewer.Viewer({
             container: 'panorama',
             adapter: [PhotoSphereViewer.LittlePlanetAdapter],
+            plugins: [PhotoSphereViewer.ScreenshotPlugin], // 啟用官方截圖插件
             panorama: imageSrc,
             mousewheel: true,
             mousewheelSpeed: 2,
-            minFov: 1, maxFov: 170, defaultZoomLvl: 30, fisheye: 2, navbar: false,
-            // 關鍵修正：允許保留繪圖緩衝區以便截圖
-            rendererOptions: { preserveDrawingBuffer: true }
+            minFov: 1, maxFov: 170, defaultZoomLvl: 30, fisheye: 2, navbar: false
         });
 
-        viewer.addEventListener('click', () => {
-            uiVisible = !uiVisible;
-            toggleUI();
-        });
+        viewer.addEventListener('click', () => { uiVisible = !uiVisible; toggleUI(); });
     }
 
     function toggleUI() {
         document.querySelectorAll('.overlay-ui').forEach(el => el.classList.toggle('hidden', !uiVisible));
     }
 
-    // 6. 截圖功能修正
+    // 6. 擷取功能 (插件版 - 極致穩定)
     document.getElementById('btn-download').onclick = () => {
-        // PSV 渲染在 canvas 上，我們需要直接抓取該 canvas
-        const canvas = document.querySelector('#panorama canvas');
-        if (!canvas) {
-            alert("找不到畫面載體");
-            return;
-        }
+        if (!viewer) return;
+        const screenshot = viewer.getPlugin(PhotoSphereViewer.ScreenshotPlugin);
         
-        try {
-            const dataUrl = canvas.toDataURL('image/png');
-            const link = document.createElement('a');
-            link.download = `360_Capture_${Date.now()}.png`;
-            link.href = dataUrl;
-            link.click();
-        } catch (e) {
-            alert("截圖失敗，請確保圖片來源安全");
-            console.error(e);
-        }
+        // 直接調用插件的下載方法，它會自動同步 WebGL 狀態
+        screenshot.download({
+            name: `360_Capture_${Date.now()}`
+        });
     };
 
     // 返回與切換
